@@ -1,0 +1,43 @@
+{
+  "name": "projects/16394875771020119409",
+  "projectId": "16394875771020119409",
+  "title": "open-karaoke",
+  "visibility": "PRIVATE",
+  "deviceType": "MOBILE",
+  "designTheme": {
+    "colorMode": "DARK",
+    "font": "ANYBODY",
+    "roundness": "ROUND_EIGHT",
+    "customColor": "#bd00ff"
+  },
+  "screens": {
+    "discovery": {
+      "id": "44a9dbe759674f69b57b04d39046000b",
+      "sourceScreen": "projects/16394875771020119409/screens/44a9dbe759674f69b57b04d39046000b",
+      "title": "Song Discovery",
+      "width": 780,
+      "height": 2432
+    },
+    "singing": {
+      "id": "94996897bbd94a0daeaf4d1a0699c912",
+      "sourceScreen": "projects/16394875771020119409/screens/94996897bbd94a0daeaf4d1a0699c912",
+      "title": "Now Singing",
+      "width": 780,
+      "height": 1768
+    },
+    "score": {
+      "id": "85f349fd4d804b738c4dfbc6bd75af01",
+      "sourceScreen": "projects/16394875771020119409/screens/85f349fd4d804b738c4dfbc6bd75af01",
+      "title": "Performance Score",
+      "width": 780,
+      "height": 2224
+    },
+    "leaderboard": {
+      "id": "6cc5122cb3eb4d38aab3cbdcca5b8e2a",
+      "sourceScreen": "projects/16394875771020119409/screens/6cc5122cb3eb4d38aab3cbdcca5b8e2a",
+      "title": "Solo Scores",
+      "width": 780,
+      "height": 2296
+    }
+  }
+}
