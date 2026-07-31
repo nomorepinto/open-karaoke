@@ -38,7 +38,7 @@ export interface LeaderboardEntry {
 }
 
 export const FEATURED_SONG: KaraokeSong = {
-  id: 'song-0',
+  id: 'dQw4w9WgXcQ',
   title: 'Cybernetic Love Signal',
   artist: 'Neon Synthetics ft. Astra',
   coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80',
@@ -49,7 +49,7 @@ export const FEATURED_SONG: KaraokeSong = {
 export const KARAOKE_SONGS: readonly KaraokeSong[] = [
   FEATURED_SONG,
   {
-    id: 'song-1',
+    id: 'L_jWHffIx5E',
     title: 'Midnight Resonance',
     artist: 'Luna Pulse',
     coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&q=80',
@@ -57,7 +57,7 @@ export const KARAOKE_SONGS: readonly KaraokeSong[] = [
     playsCount: '98.4K',
   },
   {
-    id: 'song-2',
+    id: 'fJ9rUzIMcZQ',
     title: 'Electric Horizon',
     artist: 'Vapor Wave Project',
     coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80',
@@ -65,7 +65,7 @@ export const KARAOKE_SONGS: readonly KaraokeSong[] = [
     playsCount: '76.2K',
   },
   {
-    id: 'song-3',
+    id: 'kJQP7kiw5Fk',
     title: 'Starfall Reverie',
     artist: 'Astraea',
     coverUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&q=80',
@@ -73,7 +73,7 @@ export const KARAOKE_SONGS: readonly KaraokeSong[] = [
     playsCount: '112.5K',
   },
   {
-    id: 'song-4',
+    id: 'OPf0YbXqDm0',
     title: 'Velvet Neon Echoes',
     artist: 'The Midnight Saints',
     coverUrl: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=500&q=80',
