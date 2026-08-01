@@ -1,30 +1,42 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Platform, PermissionsAndroid } from 'react-native';
-import { start, stop, setMuted, setGain } from '../modules/expo-mic-monitor';
+import { start, stop, setMuted, setGain, MicMonitorConfig } from '../modules/expo-mic-monitor';
+import { useKaraokeStore } from '../store/karaokeStore';
 
 /**
  * useMicMonitor — drop-in replacement for the WebRTC loopback hook.
- *
- * Differences from the old WebRTC version:
- *   • No `stream` in the return value — audio flows through the hardware
- *     directly (Oboe input → Oboe output), so there's no MediaStream
- *     to render via <RTCView> or <audio>.
- *   • Latency drops from ~100-150ms (WebRTC loopback) to <20-30ms
- *     (Oboe exclusive-mode, matched sample rate, mono float32).
- *   • Android-only for now; iOS will use AVAudioEngine separately.
- *
- * Usage:
- * ```tsx
- * const { isMonitoring, isMuted, error, startMonitoring, stopMonitoring, toggleMute } = useMicMonitor();
- * ```
+ * Synced with useKaraokeStore for app-wide microphone mute state management.
  */
 export function useMicMonitor() {
   const [isMonitoring, setIsMonitoring] = useState<boolean>(false);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  //Volume
-  setGain(12.0);
+  const isMuted = useKaraokeStore((s) => s.isMicMuted);
+  const toggleMicMuteInStore = useKaraokeStore((s) => s.toggleMicMute);
+
+  const micGain = useKaraokeStore((s) => s.micGain);
+
+  // Sync native mute state whenever isMuted or isMonitoring changes
+  useEffect(() => {
+    if (isMonitoring) {
+      try {
+        setMuted(isMuted);
+      } catch (err: any) {
+        console.error('[useMicMonitor] setMuted sync failed:', err);
+      }
+    }
+  }, [isMuted, isMonitoring]);
+
+  // Sync native gain state whenever micGain or isMonitoring changes
+  useEffect(() => {
+    if (isMonitoring) {
+      try {
+        setGain(micGain);
+      } catch (err: any) {
+        console.error('[useMicMonitor] setGain sync failed:', err);
+      }
+    }
+  }, [micGain, isMonitoring]);
 
   // ── Stop ─────────────────────────────────────────────────────────
   const stopMonitoring = useCallback(() => {
@@ -34,11 +46,10 @@ export function useMicMonitor() {
       // Best-effort cleanup; swallow errors.
     }
     setIsMonitoring(false);
-    setIsMuted(false);
   }, []);
 
   // ── Start ────────────────────────────────────────────────────────
-  const startMonitoring = useCallback(async () => {
+  const startMonitoring = useCallback(async (config?: Partial<MicMonitorConfig>) => {
     try {
       setError(null);
 
@@ -70,8 +81,8 @@ export function useMicMonitor() {
       // Stop any existing session first (idempotent).
       stopMonitoring();
 
-      // Fire up the Oboe engine.
-      const success = await start();
+      // Fire up the Oboe engine with custom or default config.
+      const success = await start(config);
       if (success) {
         setIsMonitoring(true);
       } else {
@@ -88,14 +99,8 @@ export function useMicMonitor() {
 
   // ── Toggle mute ──────────────────────────────────────────────────
   const toggleMute = useCallback(() => {
-    const newMuted = !isMuted;
-    try {
-      setMuted(newMuted);
-      setIsMuted(newMuted);
-    } catch (err: any) {
-      console.error('[useMicMonitor] toggleMute failed:', err);
-    }
-  }, [isMuted]);
+    toggleMicMuteInStore();
+  }, [toggleMicMuteInStore]);
 
   // ── Cleanup on unmount ───────────────────────────────────────────
   useEffect(() => {
@@ -111,5 +116,6 @@ export function useMicMonitor() {
     startMonitoring,
     stopMonitoring,
     toggleMute,
+    setGain,
   } as const;
 }

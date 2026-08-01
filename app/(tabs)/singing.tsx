@@ -6,8 +6,10 @@ import { HeaderBar } from '../../components/HeaderBar';
 import { WaveformVisualizer } from '../../components/WaveformVisualizer';
 import { GlassContainer } from '../../components/GlassContainer';
 import { GlowButton } from '../../components/GlowButton';
+import { RecordingPlayback } from '../../components/RecordingPlayback';
 import { useKaraokeStore } from '../../store/karaokeStore';
 import { useMicMonitor } from '../../hooks/useMicMonitor';
+import { useVoiceRecording } from '../../hooks/useVoiceRecording';
 import { YouTubePlayer } from '../../components/YouTubePlayer';
 
 let RTCViewComponent: any = null;
@@ -19,17 +21,37 @@ try {
   // WebRTC native component fallback
 }
 
+/** Format milliseconds to MM:SS display */
+function formatDuration(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 export default function NowSingingScreen() {
   const router = useRouter();
   const activeSong = useKaraokeStore((s) => s.activeSong);
-  const echoEffect = useKaraokeStore((s) => s.echoEffect);
-  const toggleEchoEffect = useKaraokeStore((s) => s.toggleEchoEffect);
   const micGain = useKaraokeStore((s) => s.micGain);
+  const setMicGain = useKaraokeStore((s) => s.setMicGain);
+  const chromecastConnected = useKaraokeStore((s) => s.chromecastConnected);
+  const toggleChromecast = useKaraokeStore((s) => s.toggleChromecast);
 
-  const { stream, isMuted, error: micError, startMonitoring, stopMonitoring, toggleMute } = useMicMonitor();
-  // Compute native URL from stream here; hook no longer does this to stay platform-agnostic
-  const streamURL: string | null = stream?.toURL ? stream.toURL() : null;
+  const { isMuted, error: micError, startMonitoring, stopMonitoring, toggleMute } = useMicMonitor();
   const [isVideoPlaying, setIsVideoPlaying] = useState<boolean>(false);
+
+  // ── Voice Recording ─────────────────────────────────────────────────
+  const {
+    recordingStatus,
+    recordingUri,
+    durationMillis,
+    hasRecording,
+    startRecording,
+    pauseRecording,
+    resumeRecording,
+    stopRecording,
+    deleteRecording,
+  } = useVoiceRecording({ isVideoPlaying, chromecastConnected });
 
   // Auto-start microphone loopback monitoring on mount, clean up on unmount
   useEffect(() => {
@@ -39,35 +61,69 @@ export default function NowSingingScreen() {
     };
   }, [startMonitoring, stopMonitoring]);
 
-  const handleFinishPerformance = () => {
+  const handleFinishPerformance = async () => {
+    // Stop any active recording, then delete and navigate
+    await stopRecording();
+    await deleteRecording();
     router.push('/score' as any);
   };
+
+  // ── Chromecast manual recording button logic ────────────────────────
+  const handleChromecastRecordingToggle = () => {
+    switch (recordingStatus) {
+      case 'idle':
+        startRecording();
+        break;
+      case 'recording':
+        pauseRecording();
+        break;
+      case 'paused':
+        resumeRecording();
+        break;
+      default:
+        break;
+    }
+  };
+
+  const getChromecastRecordButtonConfig = () => {
+    switch (recordingStatus) {
+      case 'recording':
+        return { label: 'PAUSE RECORDING', icon: 'pause' as const, color: '#e7006e', bg: 'bg-[#e7006e]/15 border-[#e7006e]' };
+      case 'paused':
+        return { label: 'RESUME RECORDING', icon: 'play' as const, color: '#00FF66', bg: 'bg-[#00FF66]/15 border-[#00FF66]' };
+      default:
+        return { label: 'START RECORDING', icon: 'radio-button-on' as const, color: '#e7006e', bg: 'bg-[#e7006e]/15 border-[#e7006e]' };
+    }
+  };
+
+  const chromecastBtnConfig = getChromecastRecordButtonConfig();
 
   return (
     <View className="flex-1 bg-surface">
       <HeaderBar title="STAGE LIVE" />
-
-      {/* Hidden WebRTC Audio Playback Node for Mic Loopback */}
-      {/* stream && streamURL && RTCViewComponent ? <RTCViewComponent streamURL={streamURL} style={{ width: 0, height: 0 }} /> : null */}
-
-      {stream && streamURL && RTCViewComponent ? (
-        <View style={{ borderWidth: 2, borderColor: 'red', padding: 4 }}>
-          <RTCViewComponent
-            streamURL={streamURL}
-            style={{ width: 100, height: 100, backgroundColor: '#333' }}
-          />
-          <Text style={{ color: 'white', fontSize: 10 }}>
-            RTCView mounted{'\n'}
-            streamURL: {streamURL ? 'set' : 'null'}
-          </Text>
-        </View>
-      ) : (
-        <Text style={{ color: 'red' }}>
-          RTCView NOT mounted — stream: {stream ? 'yes' : 'no'}, streamURL: {streamURL ? 'yes' : 'no'}
-        </Text>
-      )}
-
       <ScrollView className="flex-1 px-4 pt-2" showsVerticalScrollIndicator={false}>
+
+        {/* Full-width Chromecast Button above YouTube Video */}
+        <TouchableOpacity
+          onPress={toggleChromecast}
+          activeOpacity={0.8}
+          className={`w-full py-3 px-4 rounded-2xl flex-row items-center justify-center border mb-3 ${chromecastConnected
+              ? 'bg-[#00eefc]/15 border-[#00eefc]'
+              : 'bg-surface-high border-white/10'
+            }`}
+        >
+          <Ionicons
+            name={chromecastConnected ? 'tv' : 'tv-outline'}
+            size={18}
+            color={chromecastConnected ? '#00eefc' : '#a1a1aa'}
+          />
+          <Text
+            className={`text-xs font-bold font-mono tracking-wide ml-2 uppercase ${chromecastConnected ? 'text-[#00eefc]' : 'text-gray-300'
+              }`}
+          >
+            {chromecastConnected ? 'CASTING TO TV — ACTIVE' : 'CAST YOUTUBE TO TV'}
+          </Text>
+        </TouchableOpacity>
 
         {/* YouTube Karaoke Video Player */}
         <View className="mb-3">
@@ -81,6 +137,54 @@ export default function NowSingingScreen() {
 
         {/* Real-time Audio Spectrum Pitch Visualizer */}
         <WaveformVisualizer isPlaying={isVideoPlaying} barCount={22} />
+
+        {/* Recording Indicator (Non-Chromecast: auto-synced) */}
+        {!chromecastConnected && recordingStatus === 'recording' && (
+          <View className="flex-row items-center justify-center my-1.5">
+            <View className="w-2.5 h-2.5 rounded-full bg-[#e7006e] mr-2" />
+            <Text className="text-[#e7006e] text-[10px] font-mono font-bold tracking-widest uppercase">
+              REC • {formatDuration(durationMillis)}
+            </Text>
+          </View>
+        )}
+
+        {!chromecastConnected && recordingStatus === 'paused' && (
+          <View className="flex-row items-center justify-center my-1.5">
+            <View className="w-2.5 h-2.5 rounded-full bg-gray-500 mr-2" />
+            <Text className="text-gray-400 text-[10px] font-mono font-bold tracking-widest uppercase">
+              REC PAUSED • {formatDuration(durationMillis)}
+            </Text>
+          </View>
+        )}
+
+        {/* Chromecast Mode: Manual Recording Button */}
+        {chromecastConnected && (
+          <TouchableOpacity
+            onPress={handleChromecastRecordingToggle}
+            activeOpacity={0.8}
+            className={`w-full py-3 px-4 rounded-2xl flex-row items-center justify-center border my-2 ${chromecastBtnConfig.bg}`}
+          >
+            <Ionicons
+              name={chromecastBtnConfig.icon}
+              size={18}
+              color={chromecastBtnConfig.color}
+            />
+            <Text
+              className="text-xs font-bold font-mono tracking-wide ml-2 uppercase"
+              style={{ color: chromecastBtnConfig.color }}
+            >
+              {chromecastBtnConfig.label}
+            </Text>
+            {(recordingStatus === 'recording' || recordingStatus === 'paused') && (
+              <Text
+                className="text-xs font-mono ml-3 opacity-70"
+                style={{ color: chromecastBtnConfig.color }}
+              >
+                {formatDuration(durationMillis)}
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
 
         {/* Mic Error Banner */}
         {micError && (
@@ -110,23 +214,55 @@ export default function NowSingingScreen() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={toggleEchoEffect}
-              className={`flex-row items-center px-4 py-2.5 rounded-full border ${echoEffect ? 'bg-[#00eefc]/20 border-[#00eefc]' : 'bg-surface-high border-white/10'
-                }`}
-            >
-              <Ionicons name="radio" size={18} color={echoEffect ? '#00eefc' : '#888'} />
-              <Text className={`text-xs font-bold ml-2 ${echoEffect ? 'text-[#00eefc]' : 'text-gray-400'}`}>
-                {echoEffect ? 'ECHO FX ON' : 'ECHO OFF'}
-              </Text>
-            </TouchableOpacity>
+            <View className="flex-row items-center">
+              <Text className="text-xs font-bold font-mono text-gray-300 mr-2 uppercase">GAIN</Text>
+              <View className="flex-row items-center rounded-full border border-white/10 bg-surface-high overflow-hidden">
+                <TouchableOpacity
+                  onPress={() => setMicGain(Math.max(0, Number((micGain - 0.5).toFixed(1))))}
+                  activeOpacity={0.7}
+                  className="px-3.5 py-2 items-center justify-center border-r border-white/10 active:bg-white/15"
+                >
+                  <Ionicons name="remove" size={16} color="#00eefc" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setMicGain(Math.min(16.0, Number((micGain + 0.5).toFixed(1))))}
+                  activeOpacity={0.7}
+                  className="px-3.5 py-2 items-center justify-center active:bg-white/15"
+                >
+                  <Ionicons name="add" size={16} color="#00eefc" />
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
 
           <View className="mt-3 flex-row items-center justify-between">
-            <Text className="text-gray-400 text-xs font-mono">GAIN LEVEL</Text>
-            <Text className="text-[#bd00ff] text-xs font-mono font-bold">{micGain} dB</Text>
+            <Text className="text-gray-400 text-xs font-mono">GAIN MULTIPLIER</Text>
+            <Text className="text-[#bd00ff] text-xs font-mono font-bold">{micGain.toFixed(1)}x</Text>
           </View>
         </GlassContainer>
+
+        {/* Recording Playback — Listen Back */}
+        {(recordingStatus === 'recording' || recordingStatus === 'paused') && !recordingUri && (
+          <TouchableOpacity
+            onPress={async () => {
+              await stopRecording();
+            }}
+            activeOpacity={0.8}
+            className="my-2 flex-row items-center justify-center bg-surface-container/80 rounded-xl border border-[#bd00ff]/30 px-4 py-3"
+          >
+            <Ionicons name="stop-circle" size={18} color="#bd00ff" />
+            <Text className="text-xs font-bold text-[#bd00ff] ml-2 font-mono uppercase tracking-wide">
+              STOP & LISTEN BACK
+            </Text>
+            <Text className="text-xs font-mono text-[#bd00ff]/60 ml-2">
+              {formatDuration(durationMillis)}
+            </Text>
+          </TouchableOpacity>
+        )}
+        {recordingUri && (
+          <RecordingPlayback recordingUri={recordingUri} />
+        )}
 
         {/* Finish Performance Button */}
         <View className="my-4 mb-8">

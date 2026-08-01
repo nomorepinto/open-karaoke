@@ -112,7 +112,7 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
   }
 
   return (
-    <View className="rounded-2xl overflow-hidden bg-black relative">
+    <View className="rounded-2xl overflow-hidden bg-black relative border border-white/10">
       {!isReady && (
         <View
           style={{ height }}
@@ -130,8 +130,21 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
         onChangeState={handleStateChange}
         onReady={handleReady}
         onError={handleError}
+        initialPlayerParams={{
+          preventFullScreen: false,
+          showClosedCaptions: false,
+          controls: true,
+          rel: false,
+          origin: 'https://www.youtube.com',
+        }}
         webViewProps={{
           allowsInlineMediaPlayback: true,
+          mediaPlaybackRequiresUserAction: false,
+          allowsProtectedMedia: true,
+          mixedContentMode: 'always',
+          domStorageEnabled: true,
+          userAgent:
+            'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
         }}
       />
     </View>

@@ -26,7 +26,8 @@
       "expo-status-bar",
       "expo-web-browser",
       "@config-plugins/react-native-webrtc",
-      "expo-audio"
+      "expo-audio",
+      "react-native-google-cast"
     ],
     "experiments": {
       "typedRoutes": true,

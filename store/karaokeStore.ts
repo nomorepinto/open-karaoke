@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { KaraokeSong, FEATURED_SONG, ScoreBreakdown, SAMPLE_SCORE_BREAKDOWN } from '../data/mockData';
+import { DEFAULT_MIC_MONITOR_CONFIG } from '../modules/expo-mic-monitor';
 
 export interface KaraokeState {
   readonly activeSong: KaraokeSong;
@@ -9,12 +10,13 @@ export interface KaraokeState {
   readonly playbackProgress: number; // 0 to 100
   readonly scoreBreakdown: ScoreBreakdown;
   readonly chromecastConnected: boolean;
-  readonly micGain: number; // 0 to 100
+  readonly micGain: number; // multiplier e.g. 4.0
   readonly echoEffect: boolean;
 
   readonly setActiveSong: (song: KaraokeSong) => void;
   readonly togglePlayPause: () => void;
   readonly toggleMicMute: () => void;
+  readonly setIsMicMuted: (isMuted: boolean) => void;
   readonly setPlaybackProgress: (progress: number) => void;
   readonly setCurrentLyricIndex: (index: number) => void;
   readonly toggleChromecast: () => void;
@@ -26,17 +28,18 @@ export interface KaraokeState {
 export const useKaraokeStore = create<KaraokeState>((set) => ({
   activeSong: FEATURED_SONG,
   isPlaying: false,
-  isMicMuted: false,
+  isMicMuted: true,
   currentLyricIndex: 0,
   playbackProgress: 18,
   scoreBreakdown: SAMPLE_SCORE_BREAKDOWN,
-  chromecastConnected: true,
-  micGain: 85,
+  chromecastConnected: false,
+  micGain: DEFAULT_MIC_MONITOR_CONFIG.gain,
   echoEffect: true,
 
   setActiveSong: (song) => set({ activeSong: song, isPlaying: true, playbackProgress: 0, currentLyricIndex: 0 }),
   togglePlayPause: () => set((state) => ({ isPlaying: !state.isPlaying })),
   toggleMicMute: () => set((state) => ({ isMicMuted: !state.isMicMuted })),
+  setIsMicMuted: (isMuted) => set({ isMicMuted: isMuted }),
   setPlaybackProgress: (progress) => set({ playbackProgress: progress }),
   setCurrentLyricIndex: (index) => set({ currentLyricIndex: index }),
   toggleChromecast: () => set((state) => ({ chromecastConnected: !state.chromecastConnected })),

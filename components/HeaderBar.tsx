@@ -28,9 +28,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ title = 'OPEN KARAOKE', sh
         {showChromecast && (
           <TouchableOpacity
             onPress={toggleChromecast}
-            className={`px-3 py-1.5 rounded-full flex-row items-center border ${
-              chromecastConnected ? 'bg-[#00eefc]/15 border-[#00eefc]' : 'bg-surface-high border-white/10'
-            }`}
+            className={`px-3 py-1.5 rounded-full flex-row items-center border ${chromecastConnected ? 'bg-[#00eefc]/15 border-[#00eefc]' : 'bg-surface-high border-white/10'
+              }`}
           >
             <Ionicons name="tv-outline" size={16} color={chromecastConnected ? '#00eefc' : '#888'} />
             <Text className={`text-xs font-semibold ml-1.5 ${chromecastConnected ? 'text-[#00eefc]' : 'text-gray-400'}`}>
@@ -41,9 +40,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ title = 'OPEN KARAOKE', sh
 
         <TouchableOpacity
           onPress={toggleMicMute}
-          className={`w-9 h-9 rounded-full items-center justify-center border ${
-            isMicMuted ? 'bg-tertiary/20 border-tertiary' : 'bg-primary/20 border-primary'
-          }`}
+          className={`w-9 h-9 rounded-full items-center justify-center border ml-3 ${isMicMuted ? 'bg-tertiary/20 border-tertiary' : 'bg-primary/20 border-primary'
+            }`}
         >
           <Ionicons name={isMicMuted ? 'mic-off' : 'mic'} size={18} color={isMicMuted ? '#e7006e' : '#bd00ff'} />
         </TouchableOpacity>
