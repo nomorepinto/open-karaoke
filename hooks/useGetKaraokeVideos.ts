@@ -15,7 +15,7 @@ export function useGetKaraokeVideos() {
                 setIsLoading(true);
                 setError(null);
 
-                const apiKey = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY;
+                const apiKey = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY ;
                 if (!apiKey) {
                     throw new Error("Missing YouTube API Key (EXPO_PUBLIC_YOUTUBE_API_KEY).");
                 }
