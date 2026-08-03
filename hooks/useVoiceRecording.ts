@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAudioRecorder, useAudioRecorderState, RecordingPresets } from 'expo-audio';
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 
 export type RecordingStatus = 'idle' | 'recording' | 'paused' | 'stopped';
 
@@ -121,9 +121,9 @@ export function useVoiceRecording({
   const deleteRecording = useCallback(async () => {
     try {
       if (recordingUri) {
-        const fileInfo = await FileSystem.getInfoAsync(recordingUri);
-        if (fileInfo.exists) {
-          await FileSystem.deleteAsync(recordingUri, { idempotent: true });
+        const file = new File(recordingUri);
+        if (file.exists) {
+          file.delete();
         }
       }
     } catch (err) {

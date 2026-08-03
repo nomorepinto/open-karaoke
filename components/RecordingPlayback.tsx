@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,31 +29,40 @@ export const RecordingPlayback: React.FC<RecordingPlaybackProps> = ({
   const currentTime = playerStatus.currentTime ?? 0;
   const duration = playerStatus.duration ?? 0;
 
+  const runPlayerAction = useCallback((action: () => void) => {
+    if (!player) return;
+    try {
+      action();
+    } catch {
+      // Native AudioPlayer may already be released during navigation/teardown.
+    }
+  }, [player]);
+
   // Toggle play/pause
   const togglePlayback = useCallback(() => {
-    if (!player) return;
-
-    if (isPlaying) {
-      player.pause();
-    } else {
-      player.play();
-    }
-  }, [player, isPlaying]);
+    runPlayerAction(() => {
+      if (isPlaying) {
+        player.pause();
+      } else {
+        player.play();
+      }
+    });
+  }, [player, isPlaying, runPlayerAction]);
 
   // Seek to position
   const seekToStart = useCallback(() => {
-    if (!player) return;
-    player.seekTo(0);
-  }, [player]);
+    runPlayerAction(() => {
+      player.seekTo(0);
+    });
+  }, [player, runPlayerAction]);
 
-  // Stop and cleanup when component unmounts or URI changes
-  useEffect(() => {
-    return () => {
-      if (player) {
+  const pausePlayback = useCallback(() => {
+    runPlayerAction(() => {
+      if (playerStatus.playing) {
         player.pause();
       }
-    };
-  }, [player]);
+    });
+  }, [player, playerStatus.playing, runPlayerAction]);
 
   if (!recordingUri) return null;
 
@@ -104,7 +113,7 @@ export const RecordingPlayback: React.FC<RecordingPlaybackProps> = ({
 
         <TouchableOpacity
           onPress={() => {
-            if (player) player.pause();
+            pausePlayback();
             setIsExpanded(false);
             onClose?.();
           }}
@@ -158,7 +167,7 @@ export const RecordingPlayback: React.FC<RecordingPlaybackProps> = ({
         {/* Collapse */}
         <TouchableOpacity
           onPress={() => {
-            if (player) player.pause();
+            pausePlayback();
             setIsExpanded(false);
           }}
           className="w-9 h-9 rounded-full bg-white/10 items-center justify-center"

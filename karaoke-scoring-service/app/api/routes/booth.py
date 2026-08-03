@@ -1,23 +1,48 @@
 """
-Booth API routes: register performer, register song, get upload URL.
+Booth API routes: register performer, register song, upload recording.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.logging import logger
 from app.db.repository import get_or_create_song, get_or_create_user
 from app.db.session import get_db
 from app.models.schemas import (
     BoothSongRequest,
     BoothSongResponse,
+    BoothUploadResponse,
     BoothUploadUrlRequest,
     BoothUploadUrlResponse,
     BoothUserRequest,
     BoothUserResponse,
 )
-from app.services.s3_upload import build_vocal_s3_key, create_presigned_upload_url
+from app.services.s3_upload import (
+    build_vocal_s3_key,
+    create_presigned_upload_url,
+    upload_vocal_recording,
+)
 
 router = APIRouter(prefix="/booth", tags=["Booth"])
+
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # API Gateway HTTP API payload limit
+
+
+def _extension_from_filename(filename: str | None, content_type: str | None) -> str:
+    if filename and "." in filename:
+        return filename.rsplit(".", 1)[-1].lower()
+    if content_type:
+        mapping = {
+            "audio/wav": "wav",
+            "audio/x-wav": "wav",
+            "audio/mp4": "m4a",
+            "audio/m4a": "m4a",
+            "audio/x-caf": "caf",
+            "audio/3gpp": "3gp",
+            "audio/3gp": "3gp",
+        }
+        return mapping.get(content_type.split(";")[0].strip(), "m4a")
+    return "m4a"
 
 
 @router.post(
@@ -62,6 +87,49 @@ def register_booth_song(request: BoothSongRequest, db: Session = Depends(get_db)
         ) from exc
 
     return BoothSongResponse(song_id=song.id, title=song.title)
+
+
+@router.post(
+    "/upload",
+    response_model=BoothUploadResponse,
+    summary="Upload a booth vocal recording through the API (recommended for mobile)",
+)
+async def upload_booth_recording(
+    user_id: int = Form(..., gt=0),
+    song_id: int = Form(..., gt=0),
+    file: UploadFile = File(...),
+):
+    """
+    Accepts multipart audio from the booth tablet and stores it in S3 via Lambda IAM.
+    Avoids presigned URL signature issues on Android/iOS clients.
+    """
+    body = await file.read()
+    if not body:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty audio upload.")
+    if len(body) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Recording exceeds {MAX_UPLOAD_BYTES // (1024 * 1024)} MB upload limit.",
+        )
+
+    extension = _extension_from_filename(file.filename, file.content_type)
+    s3_key = build_vocal_s3_key(user_id=user_id, song_id=song_id, file_extension=extension)
+    content_type = (file.content_type or "application/octet-stream").split(";")[0].strip()
+
+    try:
+        upload_vocal_recording(s3_key=s3_key, body=body, content_type=content_type)
+    except Exception as exc:
+        logger.error(f"Booth vocal upload failed: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to store vocal recording in S3.",
+        ) from exc
+
+    return BoothUploadResponse(
+        s3_key=s3_key,
+        bucket=settings.S3_BUCKET_VOCALS,
+        bytes_uploaded=len(body),
+    )
 
 
 @router.post(

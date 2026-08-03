@@ -62,6 +62,13 @@
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
       "package": "com.lunadogcoder.openkaraoke"
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7d8019b1-4585-423c-99bc-995d8cde057c"
+      }
+    },
+    "owner": "lunadogcoder"
   }
 }

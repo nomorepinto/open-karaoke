@@ -121,3 +121,9 @@ class BoothUploadUrlResponse(BaseModel):
     bucket: str
     expires_in: int = 900
 
+
+class BoothUploadResponse(BaseModel):
+    s3_key: str
+    bucket: str
+    bytes_uploaded: int
+

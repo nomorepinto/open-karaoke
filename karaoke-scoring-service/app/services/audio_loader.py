@@ -8,14 +8,104 @@ Includes local filesystem fallback capabilities when S3 environment credentials/
 """
 import io
 import os
+import subprocess
+import tempfile
 from typing import Tuple
+
+import boto3
 import numpy as np
 import soundfile as sf
-import boto3
 from botocore.exceptions import BotoCoreError, ClientError
+
 from app.core.config import settings
 from app.core.logging import logger
 from app.utils.audio_utils import normalize_audio_signal
+
+_FFMPEG_SUFFIXES = (".m4a", ".mp4", ".caf", ".3gp", ".aac", ".mp3", ".webm")
+
+
+def _suffix_for_key(s3_key: str) -> str:
+    lower_key = s3_key.lower()
+    for suffix in _FFMPEG_SUFFIXES:
+        if lower_key.endswith(suffix):
+            return suffix
+    if lower_key.endswith(".wav"):
+        return ".wav"
+    if lower_key.endswith(".flac"):
+        return ".flac"
+    if lower_key.endswith(".ogg"):
+        return ".ogg"
+    return ".m4a"
+
+
+def _needs_ffmpeg_decode(s3_key: str) -> bool:
+    lower_key = s3_key.lower()
+    return lower_key.endswith(_FFMPEG_SUFFIXES)
+
+
+def _ffmpeg_binary() -> str:
+    """Resolve ffmpeg path inside the Lambda container."""
+    for candidate in ("/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg", "ffmpeg"):
+        if candidate != "ffmpeg" and os.path.exists(candidate):
+            return candidate
+    return "ffmpeg"
+
+
+def _load_with_ffmpeg(audio_bytes: bytes, suffix: str, target_sr: int) -> Tuple[np.ndarray, int]:
+    """Decode mobile/container audio via ffmpeg into mono PCM wav bytes for soundfile."""
+    ffmpeg_bin = _ffmpeg_binary()
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+
+        cmd = [
+            ffmpeg_bin,
+            "-nostdin",
+            "-loglevel",
+            "error",
+            "-i",
+            tmp_path,
+            "-f",
+            "wav",
+            "-acodec",
+            "pcm_s16le",
+            "-ac",
+            "1",
+            "-ar",
+            str(target_sr),
+            "pipe:1",
+        ]
+        result = subprocess.run(cmd, capture_output=True, check=True)
+        if not result.stdout:
+            raise ValueError("ffmpeg produced empty audio output")
+
+        with io.BytesIO(result.stdout) as bio:
+            y, sr = sf.read(bio)
+        return y, sr
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.decode("utf-8", errors="replace").strip()
+        raise ValueError(f"ffmpeg decode failed: {stderr or exc}") from exc
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+def _decode_audio_bytes(audio_bytes: bytes, s3_key: str, target_sr: int) -> Tuple[np.ndarray, int]:
+    if not audio_bytes:
+        raise ValueError("Audio payload is empty")
+
+    if _needs_ffmpeg_decode(s3_key):
+        return _load_with_ffmpeg(audio_bytes, _suffix_for_key(s3_key), target_sr)
+
+    with io.BytesIO(audio_bytes) as bio:
+        try:
+            y, sr = sf.read(bio)
+            return y, sr
+        except Exception as exc:
+            logger.warning(f"soundfile decode failed for '{s3_key}', falling back to ffmpeg: {exc}")
+            return _load_with_ffmpeg(audio_bytes, _suffix_for_key(s3_key), target_sr)
 
 
 def fetch_audio_from_s3(
@@ -44,7 +134,9 @@ def fetch_audio_from_s3(
     # Local fallback for local dev / testing if file exists directly on disk
     if os.path.exists(s3_key):
         try:
-            y, sr = sf.read(s3_key)
+            with open(s3_key, "rb") as handle:
+                audio_bytes = handle.read()
+            y, sr = _decode_audio_bytes(audio_bytes, s3_key, target_sr)
             return normalize_audio_signal(y, target_sr=target_sr, orig_sr=sr)
         except Exception as e:
             logger.warning(f"Local file fallback read failed for '{s3_key}': {e}")
@@ -53,36 +145,9 @@ def fetch_audio_from_s3(
         s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
         response = s3_client.get_object(Bucket=bucket_name, Key=s3_key)
         audio_bytes = response['Body'].read()
+        logger.info(f"Downloaded {len(audio_bytes)} bytes from s3://{bucket_name}/{s3_key}")
 
-        # Parse audio in-memory — soundfile for wav; temp file + librosa for mobile m4a/caf
-        with io.BytesIO(audio_bytes) as bio:
-            try:
-                y, sr = sf.read(bio)
-            except Exception:
-                import os
-                import tempfile
-                import librosa
-
-                lower_key = s3_key.lower()
-                if lower_key.endswith(".wav"):
-                    suffix = ".wav"
-                elif lower_key.endswith(".caf"):
-                    suffix = ".caf"
-                elif lower_key.endswith(".3gp"):
-                    suffix = ".3gp"
-                else:
-                    suffix = ".m4a"
-
-                tmp_path = None
-                try:
-                    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-                        tmp.write(audio_bytes)
-                        tmp_path = tmp.name
-                    y, sr = librosa.load(tmp_path, sr=None, mono=True)
-                finally:
-                    if tmp_path and os.path.exists(tmp_path):
-                        os.unlink(tmp_path)
-
+        y, sr = _decode_audio_bytes(audio_bytes, s3_key, target_sr)
         return normalize_audio_signal(y, target_sr=target_sr, orig_sr=sr)
 
     except ClientError as e:

@@ -60,25 +60,11 @@ export default function PerformanceScoreScreen() {
             color="cyan"
           />
           <ScoreMetricCard
-            title="Rhythm Precision"
-            value={`${scoreBreakdown.rhythmPrecision}%`}
-            subtitle="Coming soon"
-            iconName="time"
-            color="purple"
-          />
-          <ScoreMetricCard
             title="Volume Consistency"
             value={`${scoreBreakdown.toneQuality}%`}
             subtitle="Dynamics & breath support"
             iconName="sparkles"
             color="pink"
-          />
-          <ScoreMetricCard
-            title="Sustained Notes"
-            value={`${scoreBreakdown.maxCombo}`}
-            subtitle="Detected note segments"
-            iconName="flame"
-            color="green"
           />
         </View>
 

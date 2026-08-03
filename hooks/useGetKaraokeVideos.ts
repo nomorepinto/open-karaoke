@@ -67,7 +67,7 @@ export function useGetKaraokeVideos() {
 
                 // 3. Get view counts for these videos
                 const statsRes = await fetch(
-                    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}&key=${apiKey}`
+                    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,status&id=${videoIds}&key=${apiKey}`
                 );
 
                 if (!statsRes.ok) {
@@ -82,6 +82,7 @@ export function useGetKaraokeVideos() {
 
                 // 4. Sort by view count descending and slice top 10
                 const top10Videos = statsData.items
+                    .filter((item: any) => item.status?.embeddable !== false)
                     .sort((a: any, b: any) => Number(b.statistics?.viewCount || 0) - Number(a.statistics?.viewCount || 0))
                     .slice(0, 10);
 

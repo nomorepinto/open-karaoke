@@ -55,6 +55,7 @@ export default function NowSingingScreen() {
   const [showNameModal, setShowNameModal] = useState(false);
   const [isScoring, setIsScoring] = useState(false);
   const [scoringStage, setScoringStage] = useState<BoothPipelineStage>('registering');
+  const [scoringError, setScoringError] = useState<string | null>(null);
   const [pendingPerformerName, setPendingPerformerName] = useState<string | null>(null);
 
   // ── Voice Recording ─────────────────────────────────────────────────
@@ -98,6 +99,23 @@ export default function NowSingingScreen() {
       return;
     }
     setShowNameModal(true);
+  };
+
+  const handleDeleteRecording = () => {
+    Alert.alert(
+      'Delete recording?',
+      'This will remove your vocal recording. You can sing again before submitting a score.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void deleteRecording();
+          },
+        },
+      ],
+    );
   };
 
   const handleNameSubmit = async (name: string) => {
@@ -338,7 +356,19 @@ export default function NowSingingScreen() {
           </TouchableOpacity>
         )}
         {recordingUri && (
-          <RecordingPlayback recordingUri={recordingUri} />
+          <>
+            <RecordingPlayback recordingUri={recordingUri} />
+            <TouchableOpacity
+              onPress={handleDeleteRecording}
+              activeOpacity={0.8}
+              className="my-2 flex-row items-center justify-center bg-surface-container/80 rounded-xl border border-red-500/30 px-4 py-3"
+            >
+              <Ionicons name="trash-outline" size={18} color="#ef4444" />
+              <Text className="text-xs font-bold text-red-400 ml-2 font-mono uppercase tracking-wide">
+                DELETE RECORDING
+              </Text>
+            </TouchableOpacity>
+          </>
         )}
 
         {/* Finish Performance Button */}

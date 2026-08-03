@@ -6,14 +6,15 @@ export function useSearchYouTubeVideos(maxResults: number = 25) {
     const [error, setError] = useState<string | null>(null);
 
     const search = useCallback(async (searchQuery: string) => {
-        const trimmedQuery = searchQuery.trim() + " karaoke";
-        if (!trimmedQuery) {
+        const baseQuery = searchQuery.trim();
+        if (!baseQuery) {
             setData(null);
             setIsLoading(false);
             setError(null);
             return;
         }
 
+        const trimmedQuery = `${baseQuery} karaoke`;
         try {
             setIsLoading(true);
             setError(null);
@@ -25,7 +26,7 @@ export function useSearchYouTubeVideos(maxResults: number = 25) {
 
             // 1. Search YouTube videos using the YouTube v3 search endpoint
             const searchRes = await fetch(
-                `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=${encodeURIComponent(trimmedQuery)}&maxResults=${maxResults}&key=${apiKey}`
+                `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&q=${encodeURIComponent(trimmedQuery)}&maxResults=${maxResults}&key=${apiKey}`
             );
 
             if (!searchRes.ok) {
@@ -54,7 +55,7 @@ export function useSearchYouTubeVideos(maxResults: number = 25) {
 
             // 2. Fetch video snippet & statistics for view counts and full video details
             const statsRes = await fetch(
-                `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}&key=${apiKey}`
+                `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,status&id=${videoIds}&key=${apiKey}`
             );
 
             if (!statsRes.ok) {
@@ -66,8 +67,11 @@ export function useSearchYouTubeVideos(maxResults: number = 25) {
             }
 
             const statsData = await statsRes.json();
-            console.log(`YouTube Search results for "${trimmedQuery}":`, statsData.items);
-            setData({ items: statsData.items || [] });
+            const embeddableItems = (statsData.items || []).filter(
+                (item: any) => item.status?.embeddable !== false
+            );
+            console.log(`YouTube Search results for "${trimmedQuery}":`, embeddableItems);
+            setData({ items: embeddableItems });
             setIsLoading(false);
         } catch (err: any) {
             console.error("Error searching YouTube videos:", err.message);

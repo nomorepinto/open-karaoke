@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator, Platform } from 'react-native';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -50,12 +50,20 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
   const [playing, setPlaying] = useState<boolean>(play);
   const [isReady, setIsReady] = useState<boolean>(false);
   const [hasError, setHasError] = useState<boolean>(false);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
 
   useEffect(() => {
     setPlaying(play);
   }, [play]);
 
   const videoId = extractYouTubeVideoId(videoUrl);
+
+  useEffect(() => {
+    setHasError(false);
+    setErrorCode(null);
+    setIsReady(false);
+    setPlaying(play);
+  }, [videoId, play]);
 
   const handleStateChange = useCallback(
     (state: string) => {
@@ -74,11 +82,20 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
 
   const handleError = useCallback(
     (err: string) => {
+      console.warn('[YouTubePlayer] playback error:', err, 'videoId:', videoId);
       setHasError(true);
+      setErrorCode(err);
       onError?.(err);
     },
-    [onError]
+    [onError, videoId]
   );
+
+  const errorMessage =
+    errorCode === 'embed_not_allowed'
+      ? 'This video cannot be played in the app. Try another karaoke track.'
+      : errorCode === 'video_not_found'
+        ? 'This video is unavailable or was removed.'
+        : 'Unable to play this YouTube video';
 
   if (!videoId) {
     return (
@@ -104,9 +121,14 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
         className="bg-surface-container border border-tertiary/30 rounded-2xl items-center justify-center p-4"
       >
         <Ionicons name="videocam-off-outline" size={32} color="#e7006e" />
-        <Text className="text-tertiary text-sm font-mono mt-2 text-center">
-          Unable to play this YouTube video
+        <Text className="text-tertiary text-sm font-mono mt-2 text-center px-4">
+          {errorMessage}
         </Text>
+        {videoId && (
+          <Text className="text-gray-500 text-[10px] font-mono mt-1 text-center">
+            Video ID: {videoId}
+          </Text>
+        )}
       </View>
     );
   }
@@ -124,9 +146,11 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
       )}
 
       <YoutubePlayer
+        key={videoId}
         height={height}
         play={playing}
         videoId={videoId}
+        forceAndroidAutoplay={Platform.OS === 'android'}
         onChangeState={handleStateChange}
         onReady={handleReady}
         onError={handleError}
@@ -135,16 +159,11 @@ export const YouTubePlayer: React.FC<YouTubePlayerProps> = ({
           showClosedCaptions: false,
           controls: true,
           rel: false,
-          origin: 'https://www.youtube.com',
         }}
         webViewProps={{
           allowsInlineMediaPlayback: true,
           mediaPlaybackRequiresUserAction: false,
-          allowsProtectedMedia: true,
-          mixedContentMode: 'always',
           domStorageEnabled: true,
-          userAgent:
-            'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
         }}
       />
     </View>

@@ -9,6 +9,7 @@ uvicorn[standard]>=0.28.0,<0.30.0
 numpy==1.26.4
 scipy==1.13.1
 soundfile==0.12.1
+audioread==3.0.1
 scikit-learn==1.4.2
 soxr==0.3.7  # Pinned: newer soxr (0.5+) fails to compile on Lambda AL2 (GCC 7.3.1)
 librosa==0.10.2.post1
@@ -21,6 +22,7 @@ psycopg2-binary>=2.9.0
 # Validation & Settings
 pydantic>=2.6.0
 pydantic-settings>=2.2.0
+python-multipart>=0.0.9
 
 # Testing
 pytest>=8.0.0

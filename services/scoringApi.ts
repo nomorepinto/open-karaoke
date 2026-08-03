@@ -1,6 +1,7 @@
 /**
  * Karaoke scoring API client for the booth tablet flow.
  */
+import { File, UploadType } from 'expo-file-system';
 import { ScoreBreakdown } from '../data/mockData';
 
 const DEFAULT_API_BASE =
@@ -49,11 +50,10 @@ export interface BoothSongResponse {
   title: string;
 }
 
-export interface BoothUploadUrlResponse {
-  upload_url: string;
+export interface BoothUploadResponse {
   s3_key: string;
   bucket: string;
-  expires_in: number;
+  bytes_uploaded: number;
 }
 
 class ScoringApiError extends Error {
@@ -125,44 +125,39 @@ export async function registerBoothSong(title: string): Promise<BoothSongRespons
   });
 }
 
-export async function getBoothUploadUrl(params: {
+export async function uploadRecordingViaApi(params: {
+  recordingUri: string;
   userId: number;
   songId: number;
-  fileExtension: string;
-  contentType: string;
-}): Promise<BoothUploadUrlResponse> {
-  return apiFetch<BoothUploadUrlResponse>('/booth/upload-url', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      user_id: params.userId,
-      song_id: params.songId,
-      file_extension: params.fileExtension,
-      content_type: params.contentType,
-    }),
-  });
-}
+}): Promise<BoothUploadResponse> {
+  const { contentType } = inferRecordingMeta(params.recordingUri);
+  const file = new File(params.recordingUri);
 
-export async function uploadRecordingToS3(
-  recordingUri: string,
-  uploadUrl: string,
-  contentType: string,
-): Promise<void> {
-  const fileResponse = await fetch(recordingUri);
-  if (!fileResponse.ok) {
-    throw new Error('Could not read the local recording file.');
-  }
-
-  const blob = await fileResponse.blob();
-  const uploadResponse = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType },
-    body: blob,
+  const result = await file.upload(`${SCORING_API_BASE}/booth/upload`, {
+    httpMethod: 'POST',
+    uploadType: UploadType.MULTIPART,
+    fieldName: 'file',
+    mimeType: contentType,
+    parameters: {
+      user_id: String(params.userId),
+      song_id: String(params.songId),
+    },
   });
 
-  if (!uploadResponse.ok) {
-    throw new Error(`Upload failed (${uploadResponse.status}).`);
+  if (result.status < 200 || result.status >= 300) {
+    let detail = `Upload failed (${result.status})`;
+    if (result.body) {
+      try {
+        const body = JSON.parse(result.body) as { detail?: string };
+        detail = body.detail ?? `${detail}. ${result.body}`;
+      } catch {
+        detail = `${detail}. ${result.body}`;
+      }
+    }
+    throw new ScoringApiError(detail, result.status);
   }
+
+  return JSON.parse(result.body) as BoothUploadResponse;
 }
 
 export async function submitScore(params: {
@@ -225,23 +220,18 @@ export async function runBoothScoringPipeline(params: {
   recordingUri: string;
   onStageChange?: (stage: BoothPipelineStage) => void;
 }): Promise<ScoreApiResponse> {
-  const { fileExtension, contentType } = inferRecordingMeta(params.recordingUri);
-
   params.onStageChange?.('registering');
   const [user, song] = await Promise.all([
     registerBoothUser(params.performerName),
     registerBoothSong(params.songTitle),
   ]);
 
-  const upload = await getBoothUploadUrl({
+  params.onStageChange?.('uploading');
+  const upload = await uploadRecordingViaApi({
+    recordingUri: params.recordingUri,
     userId: user.user_id,
     songId: song.song_id,
-    fileExtension,
-    contentType,
   });
-
-  params.onStageChange?.('uploading');
-  await uploadRecordingToS3(params.recordingUri, upload.upload_url, contentType);
 
   params.onStageChange?.('scoring');
   const score = await submitScore({
