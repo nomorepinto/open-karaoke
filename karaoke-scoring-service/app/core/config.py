@@ -11,10 +11,11 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
-    # S3 Storage Configuration
-    S3_BUCKET_VOCALS: str = os.getenv("S3_BUCKET_VOCALS", "karaoke-user-recordings-bucket")
-    S3_BUCKET_SONGS: str = os.getenv("S3_BUCKET_SONGS", "karaoke-master-songs-bucket")
-    AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
+    # S3 Storage Configuration (Supports single bucket or separate buckets)
+    S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "open-karaoke-bucket")
+    S3_BUCKET_VOCALS: str = os.getenv("S3_BUCKET_VOCALS", os.getenv("S3_BUCKET_NAME", "open-karaoke-bucket"))
+    S3_BUCKET_SONGS: str = os.getenv("S3_BUCKET_SONGS", os.getenv("S3_BUCKET_NAME", "open-karaoke-bucket"))
+    AWS_REGION: str = os.getenv("AWS_REGION", "ap-southeast-1")
 
     # PostgreSQL RDS Database Connection Configuration
     DATABASE_URL: str = os.getenv(

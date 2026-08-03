@@ -13,7 +13,7 @@ RUN yum update -y && \
 COPY requirements.txt ${LAMBDA_TASK_ROOT}/
 
 # Install Python packages directly into Task Root
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
 
 # Copy application source code into Task Root
 COPY app/ ${LAMBDA_TASK_ROOT}/app/

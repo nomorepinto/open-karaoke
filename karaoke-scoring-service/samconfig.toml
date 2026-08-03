@@ -1,0 +1,11 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "open-karaoke"
+region = "ap-southeast-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+disable_rollback = false
+resolve_s3 = true
+resolve_image_repositories = true
+parameter_overrides = "S3BucketName=\"open-karaoke-recordings-bucket\" DatabaseUrl=\"postgresql://postgres@database-1.cluster-c5gog2m2mroy.ap-southeast-1.rds.amazonaws.com:5432/postgres\""

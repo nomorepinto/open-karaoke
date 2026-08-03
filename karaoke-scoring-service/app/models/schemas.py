@@ -9,22 +9,22 @@ from datetime import datetime
 class ScoreRequest(BaseModel):
     """
     Request model for POST /score endpoint.
-    Client provides customer identifier, key for recorded vocal audio in S3, and song ID.
+    Client provides user_id, song_id, and s3_link for recorded vocal audio in S3.
     """
-    customer_id: str = Field(
+    user_id: int = Field(
         ...,
-        description="Unique identifier or username for the customer/performer.",
-        json_schema_extra={"example": "user_alex_123"}
+        description="Foreign key ID for performer referencing users table.",
+        json_schema_extra={"example": 1}
     )
-    vocal_s3_key: str = Field(
+    song_id: int = Field(
         ...,
-        description="S3 bucket key for the uploaded vocal audio recording.",
-        json_schema_extra={"example": "recordings/vocal_user_alex_123_song_456.wav"}
+        description="Foreign key ID for performed song referencing songs table.",
+        json_schema_extra={"example": 456}
     )
-    song_id: str = Field(
+    s3_link: str = Field(
         ...,
-        description="Identifier of the performed song (used to locate instrumental track in S3).",
-        json_schema_extra={"example": "song_456"}
+        description="S3 bucket key or URL for the uploaded vocal audio recording.",
+        json_schema_extra={"example": "recordings/vocal_user_1_song_456.wav"}
     )
 
 
@@ -76,9 +76,10 @@ class ScoreResponse(BaseModel):
     """
     API Response model returned after vocal analysis and DB persistence.
     """
-    record_id: str = Field(..., description="Unique database UUID for the saved score record.")
-    customer_id: str = Field(..., description="Customer/performer ID.")
-    song_id: str = Field(..., description="Song identifier.")
+    record_id: int = Field(..., description="Database serial ID for the saved score record.")
+    user_id: int = Field(..., description="User ID.")
+    song_id: int = Field(..., description="Song ID.")
+    s3_link: str = Field(..., description="S3 vocal audio link/key.")
     total_score: float = Field(
         ...,
         ge=0.0,
@@ -91,3 +92,4 @@ class ScoreResponse(BaseModel):
         description="Optional detailed array of sustained note segments for pitch curves / UI visualizers."
     )
     created_at: datetime = Field(..., description="Timestamp when score record was generated and persisted.")
+

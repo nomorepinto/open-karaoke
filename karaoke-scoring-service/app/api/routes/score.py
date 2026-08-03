@@ -1,20 +1,5 @@
 """
 API Route Handler: POST /score.
-
-Architectural Design & Trigger Mechanism Tradeoff Comment:
--------------------------------------------------------
-This endpoint uses an EXPLICIT API CALL (`POST /score` containing `{customer_id, vocal_s3_key, song_id}`).
-
-TRADEOFF ANALYSIS (Explicit API Call vs S3 Event Notification):
-1. EXPLICIT API CALL (Chosen approach):
-   - Pros: Simple to test locally via OpenAPI UI / curl; allows client to attach rich payload metadata
-     (customer_id, custom user tags); client receives immediate HTTP 200 response with score & segment JSON.
-   - Cons: Requires an explicit HTTP request after the client completes S3 upload.
-
-2. S3 EVENT NOTIFICATION TRIGGER (`s3:ObjectCreated:*` -> Lambda):
-   - Pros: Fully asynchronous, decoupled client; scoring begins automatically as soon as S3 upload finishes.
-   - Cons: Requires storing customer_id and song_id in S3 object metadata headers or separate DB session;
-      harder to test locally; cannot return an immediate synchronous HTTP response payload to the web client.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -44,19 +29,19 @@ def score_performance(
     Orchestrates the scoring process:
     1. Downloads vocal recording and song instrumental track from S3 using boto3.
     2. Runs all 4 self-referential audio analyzers (Pitch, Rhythm, Volume, Sustain).
-    3. Persists performance scores and segment details to PostgreSQL RDS.
+    3. Persists performance scores and segment details to PostgreSQL RDS (`scores` table).
     4. Returns JSON response containing composite total score, sub-scores, and segment visualization data.
     """
     logger.info(
-        f"Received scoring request for customer='{request.customer_id}', "
-        f"vocal_key='{request.vocal_s3_key}', song_id='{request.song_id}'"
+        f"Received scoring request for user_id={request.user_id}, "
+        f"s3_link='{request.s3_link}', song_id={request.song_id}"
     )
 
     # 1. Fetch audio files from S3
     try:
         y_vocal, y_inst, sr = load_vocal_and_instrumental_tracks(
-            vocal_s3_key=request.vocal_s3_key,
-            song_id=request.song_id
+            vocal_s3_key=request.s3_link,
+            song_id=str(request.song_id)
         )
     except FileNotFoundError as e:
         logger.error(f"S3 Resource Missing: {e}")
@@ -95,9 +80,9 @@ def score_performance(
     try:
         db_record = save_score_record(
             db=db,
-            customer_id=request.customer_id,
-            vocal_s3_key=request.vocal_s3_key,
+            user_id=request.user_id,
             song_id=request.song_id,
+            s3_link=request.s3_link,
             scores=metric_scores,
             total_score=total_score,
             segment_details=segment_details
@@ -112,8 +97,9 @@ def score_performance(
     # 4. Construct response
     return ScoreResponse(
         record_id=db_record.id,
-        customer_id=db_record.customer_id,
+        user_id=db_record.user_id,
         song_id=db_record.song_id,
+        s3_link=db_record.s3_link,
         total_score=db_record.total_score,
         scores=metric_scores,
         segment_details=segment_details,
@@ -124,10 +110,10 @@ def score_performance(
 @router.get(
     "/{record_id}",
     response_model=ScoreResponse,
-    summary="Retrieve a score record by UUID"
+    summary="Retrieve a score record by integer ID"
 )
-def get_score_by_id(record_id: str, db: Session = Depends(get_db)):
-    """Fetch previously persisted performance score from RDS by record UUID."""
+def get_score_by_id(record_id: int, db: Session = Depends(get_db)):
+    """Fetch previously persisted performance score from RDS by record ID."""
     record = get_score_record_by_id(db, record_id)
     if not record:
         raise HTTPException(
@@ -136,18 +122,20 @@ def get_score_by_id(record_id: str, db: Session = Depends(get_db)):
         )
 
     metric_scores = MetricScores(
-        pitch_stability=record.pitch_stability_score,
-        rhythm_accuracy=record.rhythm_accuracy_score,
-        volume_consistency=record.volume_consistency_score,
-        sustain_consistency=record.sustain_consistency_score
+        pitch_stability=record.pitch_stability_score or 0.0,
+        rhythm_accuracy=record.rhythm_accuracy_score or 0.0,
+        volume_consistency=record.volume_consistency_score or 0.0,
+        sustain_consistency=record.sustain_consistency_score or 0.0
     )
 
     return ScoreResponse(
         record_id=record.id,
-        customer_id=record.customer_id,
+        user_id=record.user_id,
         song_id=record.song_id,
-        total_score=record.total_score,
+        s3_link=record.s3_link,
+        total_score=record.total_score or 0.0,
         scores=metric_scores,
         segment_details=record.segment_details,
         created_at=record.created_at
     )
+

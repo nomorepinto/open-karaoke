@@ -47,9 +47,9 @@ def test_post_score_endpoint(mock_load_audio, synthetic_vocal_audio, synthetic_i
     mock_load_audio.return_value = (synthetic_vocal_audio, synthetic_instrumental_audio, sr)
 
     payload = {
-        "customer_id": "test_user_alex",
-        "vocal_s3_key": "recordings/test_vocal.wav",
-        "song_id": "dQw4w9WgXcQ"
+        "user_id": 1,
+        "song_id": 456,
+        "s3_link": "recordings/test_vocal.wav"
     }
 
     response = client.post("/score", json=payload)
@@ -57,8 +57,9 @@ def test_post_score_endpoint(mock_load_audio, synthetic_vocal_audio, synthetic_i
 
     data = response.json()
     assert "record_id" in data
-    assert data["customer_id"] == "test_user_alex"
-    assert data["song_id"] == "dQw4w9WgXcQ"
+    assert data["user_id"] == 1
+    assert data["song_id"] == 456
+    assert data["s3_link"] == "recordings/test_vocal.wav"
     assert 0.0 <= data["total_score"] <= 100.0
     assert "scores" in data
     assert 0.0 <= data["scores"]["pitch_stability"] <= 100.0
@@ -78,3 +79,4 @@ def test_post_score_endpoint(mock_load_audio, synthetic_vocal_audio, synthetic_i
             os.remove("./test_api.db")
         except Exception:
             pass
+

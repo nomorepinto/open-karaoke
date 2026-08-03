@@ -1,46 +1,46 @@
 """
-Repository layer providing clean CRUD interface for KaraokeScore records in PostgreSQL RDS.
+Repository layer providing clean CRUD interface for Score records in PostgreSQL RDS.
 db/ is the ONLY layer that communicates directly with RDS/SQLAlchemy.
 """
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 from sqlalchemy.orm import Session
-from app.models.db_models import KaraokeScore
+from app.models.db_models import Score
 from app.models.schemas import MetricScores, SegmentDetail
 from app.core.logging import logger
 
 
 def save_score_record(
     db: Session,
-    customer_id: str,
-    vocal_s3_key: str,
-    song_id: str,
+    user_id: int,
+    song_id: int,
+    s3_link: str,
     scores: MetricScores,
     total_score: float,
     segment_details: Optional[List[SegmentDetail]] = None
-) -> KaraokeScore:
+) -> Score:
     """
-    Persists a completed scoring result to PostgreSQL RDS.
+    Persists a completed scoring result to PostgreSQL RDS `scores` table.
 
     Args:
         db: Active SQLAlchemy Session instance.
-        customer_id: Performer ID.
-        vocal_s3_key: S3 bucket key of vocal recording.
-        song_id: Song ID.
+        user_id: Foreign key ID for user.
+        song_id: Foreign key ID for song.
+        s3_link: S3 bucket key/link for vocal recording.
         scores: MetricScores instance containing all 4 score metrics.
         total_score: Composite 0-100 score.
         segment_details: Optional list of segment detail models for UI visualization.
 
     Returns:
-        Created KaraokeScore ORM record.
+        Created Score ORM record.
     """
     serialized_details = (
         [seg.model_dump() for seg in segment_details] if segment_details else None
     )
 
-    db_record = KaraokeScore(
-        customer_id=customer_id,
-        vocal_s3_key=vocal_s3_key,
+    db_record = Score(
+        user_id=user_id,
         song_id=song_id,
+        s3_link=s3_link,
         pitch_stability_score=scores.pitch_stability,
         rhythm_accuracy_score=scores.rhythm_accuracy,
         volume_consistency_score=scores.volume_consistency,
@@ -53,7 +53,7 @@ def save_score_record(
         db.add(db_record)
         db.commit()
         db.refresh(db_record)
-        logger.info(f"Persisted score record ID={db_record.id} for customer='{customer_id}'")
+        logger.info(f"Persisted score record ID={db_record.id} for user_id={user_id}")
         return db_record
     except Exception as e:
         db.rollback()
@@ -61,17 +61,18 @@ def save_score_record(
         raise RuntimeError(f"Database write failure: {str(e)}") from e
 
 
-def get_score_record_by_id(db: Session, record_id: str) -> Optional[KaraokeScore]:
-    """Retrieves a single score record by UUID."""
-    return db.query(KaraokeScore).filter(KaraokeScore.id == record_id).first()
+def get_score_record_by_id(db: Session, record_id: int) -> Optional[Score]:
+    """Retrieves a single score record by integer ID."""
+    return db.query(Score).filter(Score.id == record_id).first()
 
 
-def get_customer_scores(db: Session, customer_id: str, limit: int = 20) -> List[KaraokeScore]:
-    """Queries score history for a specific customer."""
+def get_user_scores(db: Session, user_id: int, limit: int = 20) -> List[Score]:
+    """Queries score history for a specific user."""
     return (
-        db.query(KaraokeScore)
-        .filter(KaraokeScore.customer_id == customer_id)
-        .order_by(KaraokeScore.created_at.desc())
+        db.query(Score)
+        .filter(Score.user_id == user_id)
+        .order_by(Score.created_at.desc())
         .limit(limit)
         .all()
     )
+

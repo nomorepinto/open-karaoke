@@ -10,26 +10,23 @@ Globals:
       Variables:
         ENVIRONMENT: production
         LOG_LEVEL: INFO
-        S3_BUCKET_VOCALS: !Ref UserVocalsBucketName
-        S3_BUCKET_SONGS: !Ref MasterSongsBucketName
+        AWS_REGION: !Ref "AWS::Region"
+        S3_BUCKET_NAME: !Ref S3BucketName
+        S3_BUCKET_VOCALS: !Ref S3BucketName
+        S3_BUCKET_SONGS: !Ref S3BucketName
         DATABASE_URL: !Ref DatabaseUrl
 
 Parameters:
-  UserVocalsBucketName:
+  S3BucketName:
     Type: String
-    Default: karaoke-user-recordings-bucket
-    Description: Name of S3 bucket storing uploaded customer vocal recordings.
-
-  MasterSongsBucketName:
-    Type: String
-    Default: karaoke-master-songs-bucket
-    Description: Name of S3 bucket storing master instrumental backing tracks.
+    Default: open-karaoke-bucket
+    Description: Name of S3 bucket storing vocal recordings and master instrumental tracks.
 
   DatabaseUrl:
     Type: String
     NoEcho: true
-    Default: postgresql://postgres:SecurePassword123@karaoke-db.cluster-xyz.us-east-1.rds.amazonaws.com:5432/karaoke_db
-    Description: Connection string for AWS RDS PostgreSQL database.
+    Default: postgresql://postgres@database-1-instance-1.c5gog2m2mroy.ap-southeast-1.rds.amazonaws.com:5432/postgres
+    Description: Connection string for AWS RDS PostgreSQL database (IAM database auth enabled).
 
 Resources:
   # API Gateway HTTP API
@@ -56,10 +53,13 @@ Resources:
         - x86_64
       Policies:
         - AWSLambdaBasicExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action:
+                - rds-db:connect
+              Resource: "*"
         - S3ReadPolicy:
-            BucketName: !Ref UserVocalsBucketName
-        - S3ReadPolicy:
-            BucketName: !Ref MasterSongsBucketName
+            BucketName: !Ref S3BucketName
       Events:
         RootPath:
           Type: HttpApi
@@ -67,11 +67,10 @@ Resources:
             Path: /{proxy+}
             Method: ANY
             ApiId: !Ref KaraokeApi
-
-Metadata:
-  Dockerfile: Dockerfile
-  DockerContext: ./
-  DockerTag: v1.0.0
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ./
+      DockerTag: v1.0.0
 
 Outputs:
   ApiEndpoint:
