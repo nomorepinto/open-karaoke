@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AWS SAM Template for Karaoke Scoring Service on AWS Lambda with Mangum & API Gateway.
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 2048
+    Environment:
+      Variables:
+        ENVIRONMENT: production
+        LOG_LEVEL: INFO
+        S3_BUCKET_VOCALS: !Ref UserVocalsBucketName
+        S3_BUCKET_SONGS: !Ref MasterSongsBucketName
+        DATABASE_URL: !Ref DatabaseUrl
+
+Parameters:
+  UserVocalsBucketName:
+    Type: String
+    Default: karaoke-user-recordings-bucket
+    Description: Name of S3 bucket storing uploaded customer vocal recordings.
+
+  MasterSongsBucketName:
+    Type: String
+    Default: karaoke-master-songs-bucket
+    Description: Name of S3 bucket storing master instrumental backing tracks.
+
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+    Default: postgresql://postgres:SecurePassword123@karaoke-db.cluster-xyz.us-east-1.rds.amazonaws.com:5432/karaoke_db
+    Description: Connection string for AWS RDS PostgreSQL database.
+
+Resources:
+  # API Gateway HTTP API
+  KaraokeApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - "*"
+
+  # Container-based Lambda Function
+  KaraokeScoringFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      Architectures:
+        - x86_64
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3ReadPolicy:
+            BucketName: !Ref UserVocalsBucketName
+        - S3ReadPolicy:
+            BucketName: !Ref MasterSongsBucketName
+      Events:
+        RootPath:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+            ApiId: !Ref KaraokeApi
+
+Metadata:
+  Dockerfile: Dockerfile
+  DockerContext: ./
+  DockerTag: v1.0.0
+
+Outputs:
+  ApiEndpoint:
+    Description: "API Gateway Endpoint URL for Karaoke Scoring Service"
+    Value: !Sub "https://${KaraokeApi}.execute-api.${AWS::Region}.amazonaws.com/prod/"
+
+  LambdaFunctionArn:
+    Description: "Karaoke Scoring Lambda Function ARN"
+    Value: !GetAtt KaraokeScoringFunction.Arn

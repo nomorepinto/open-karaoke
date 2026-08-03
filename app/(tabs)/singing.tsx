@@ -7,6 +7,7 @@ import { WaveformVisualizer } from '../../components/WaveformVisualizer';
 import { GlassContainer } from '../../components/GlassContainer';
 import { GlowButton } from '../../components/GlowButton';
 import { RecordingPlayback } from '../../components/RecordingPlayback';
+import { UserNamePromptModal } from '../../components/UserNamePromptModal';
 import { useKaraokeStore } from '../../store/karaokeStore';
 import { useMicMonitor } from '../../hooks/useMicMonitor';
 import { useVoiceRecording } from '../../hooks/useVoiceRecording';
@@ -40,6 +41,9 @@ export default function NowSingingScreen() {
   const { isMuted, error: micError, startMonitoring, stopMonitoring, toggleMute } = useMicMonitor();
   const [isVideoPlaying, setIsVideoPlaying] = useState<boolean>(false);
 
+  // ── Name Prompt Modal ────────────────────────────────────────────────
+  const [showNameModal, setShowNameModal] = useState(false);
+
   // ── Voice Recording ─────────────────────────────────────────────────
   const {
     recordingStatus,
@@ -61,8 +65,20 @@ export default function NowSingingScreen() {
     };
   }, [startMonitoring, stopMonitoring]);
 
-  const handleFinishPerformance = async () => {
+  const handleFinishPerformance = () => {
+    setShowNameModal(true);
+  };
+
+  const handleNameSubmit = async (name: string) => {
+    setShowNameModal(false);
     // Stop any active recording, then delete and navigate
+    await stopRecording();
+    await deleteRecording();
+    router.push({ pathname: '/score', params: { performerName: name } } as any);
+  };
+
+  const handleSkipName = async () => {
+    setShowNameModal(false);
     await stopRecording();
     await deleteRecording();
     router.push('/score' as any);
@@ -274,6 +290,14 @@ export default function NowSingingScreen() {
           />
         </View>
       </ScrollView>
+
+      {/* ── Name Prompt Modal Component ───────────────────────────────── */}
+      <UserNamePromptModal
+        visible={showNameModal}
+        onSubmit={handleNameSubmit}
+        onSkip={handleSkipName}
+        onClose={() => setShowNameModal(false)}
+      />
     </View>
   );
 }
