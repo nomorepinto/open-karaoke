@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { HeaderBar } from '../../components/HeaderBar';
@@ -8,10 +8,17 @@ import { GlassContainer } from '../../components/GlassContainer';
 import { GlowButton } from '../../components/GlowButton';
 import { RecordingPlayback } from '../../components/RecordingPlayback';
 import { UserNamePromptModal } from '../../components/UserNamePromptModal';
+import { ScoringOverlay } from '../../components/ScoringOverlay';
 import { useKaraokeStore } from '../../store/karaokeStore';
 import { useMicMonitor } from '../../hooks/useMicMonitor';
 import { useVoiceRecording } from '../../hooks/useVoiceRecording';
 import { YouTubePlayer } from '../../components/YouTubePlayer';
+import {
+  BoothPipelineStage,
+  mapScoreResponseToBreakdown,
+  runBoothScoringPipeline,
+  ScoringApiError,
+} from '../../services/scoringApi';
 
 let RTCViewComponent: any = null;
 try {
@@ -33,6 +40,9 @@ function formatDuration(ms: number): string {
 export default function NowSingingScreen() {
   const router = useRouter();
   const activeSong = useKaraokeStore((s) => s.activeSong);
+  const setScoreBreakdown = useKaraokeStore((s) => s.setScoreBreakdown);
+  const setPerformerName = useKaraokeStore((s) => s.setPerformerName);
+  const setLastScoreRecordId = useKaraokeStore((s) => s.setLastScoreRecordId);
   const micGain = useKaraokeStore((s) => s.micGain);
   const setMicGain = useKaraokeStore((s) => s.setMicGain);
   const chromecastConnected = useKaraokeStore((s) => s.chromecastConnected);
@@ -43,6 +53,9 @@ export default function NowSingingScreen() {
 
   // ── Name Prompt Modal ────────────────────────────────────────────────
   const [showNameModal, setShowNameModal] = useState(false);
+  const [isScoring, setIsScoring] = useState(false);
+  const [scoringStage, setScoringStage] = useState<BoothPipelineStage>('registering');
+  const [pendingPerformerName, setPendingPerformerName] = useState<string | null>(null);
 
   // ── Voice Recording ─────────────────────────────────────────────────
   const {
@@ -65,23 +78,71 @@ export default function NowSingingScreen() {
     };
   }, [startMonitoring, stopMonitoring]);
 
-  const handleFinishPerformance = () => {
+  const resolveRecordingUri = async (): Promise<string | null> => {
+    if (recordingUri) {
+      return recordingUri;
+    }
+    if (recordingStatus === 'recording' || recordingStatus === 'paused') {
+      return stopRecording();
+    }
+    return null;
+  };
+
+  const handleFinishPerformance = async () => {
+    const uri = await resolveRecordingUri();
+    if (!uri) {
+      Alert.alert(
+        'No recording found',
+        'Sing along with the track first so we can score your performance.',
+      );
+      return;
+    }
     setShowNameModal(true);
   };
 
   const handleNameSubmit = async (name: string) => {
     setShowNameModal(false);
-    // Stop any active recording, then delete and navigate
-    await stopRecording();
-    await deleteRecording();
-    router.push({ pathname: '/score', params: { performerName: name } } as any);
+    setPendingPerformerName(name);
+    setScoringError(null);
+    setScoringStage('registering');
+    setIsScoring(true);
+
+    try {
+      const uri = await resolveRecordingUri();
+      if (!uri) {
+        throw new Error('No vocal recording was captured. Please sing again and retry.');
+      }
+
+      const scoreResponse = await runBoothScoringPipeline({
+        performerName: name,
+        songTitle: activeSong.title,
+        recordingUri: uri,
+        onStageChange: setScoringStage,
+      });
+
+      setPerformerName(name);
+      setLastScoreRecordId(scoreResponse.record_id);
+      setScoreBreakdown(mapScoreResponseToBreakdown(scoreResponse));
+
+      await deleteRecording();
+      router.push({ pathname: '/score', params: { performerName: name } } as any);
+    } catch (error) {
+      const message =
+        error instanceof ScoringApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Something went wrong while scoring your performance.';
+      setScoringStage('error');
+      setScoringError(message);
+      Alert.alert('Scoring failed', message);
+    } finally {
+      setIsScoring(false);
+    }
   };
 
-  const handleSkipName = async () => {
+  const handleSkipName = () => {
     setShowNameModal(false);
-    await stopRecording();
-    await deleteRecording();
-    router.push('/score' as any);
   };
 
   // ── Chromecast manual recording button logic ────────────────────────
@@ -297,6 +358,13 @@ export default function NowSingingScreen() {
         onSubmit={handleNameSubmit}
         onSkip={handleSkipName}
         onClose={() => setShowNameModal(false)}
+      />
+
+      <ScoringOverlay
+        visible={isScoring}
+        stage={scoringStage}
+        performerName={pendingPerformerName ?? undefined}
+        errorMessage={scoringError}
       />
     </View>
   );

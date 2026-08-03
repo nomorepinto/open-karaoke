@@ -4,9 +4,54 @@ db/ is the ONLY layer that communicates directly with RDS/SQLAlchemy.
 """
 from typing import Optional, List
 from sqlalchemy.orm import Session
-from app.models.db_models import Score
+from sqlalchemy import func
+from app.models.db_models import Score, User, Song
 from app.models.schemas import MetricScores, SegmentDetail
 from app.core.logging import logger
+
+
+def get_or_create_user(db: Session, name: str) -> User:
+    """Find an existing booth user by name (case-insensitive) or create one."""
+    normalized = name.strip()
+    if not normalized:
+        raise ValueError("Performer name cannot be empty.")
+
+    existing = (
+        db.query(User)
+        .filter(func.lower(User.name) == normalized.lower())
+        .first()
+    )
+    if existing:
+        return existing
+
+    user = User(name=normalized)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    logger.info(f"Created booth user id={user.id} name='{user.name}'")
+    return user
+
+
+def get_or_create_song(db: Session, title: str) -> Song:
+    """Find an existing song by title (case-insensitive) or create one."""
+    normalized = title.strip()
+    if not normalized:
+        raise ValueError("Song title cannot be empty.")
+
+    existing = (
+        db.query(Song)
+        .filter(func.lower(Song.title) == normalized.lower())
+        .first()
+    )
+    if existing:
+        return existing
+
+    song = Song(title=normalized)
+    db.add(song)
+    db.commit()
+    db.refresh(song)
+    logger.info(f"Created booth song id={song.id} title='{song.title}'")
+    return song
 
 
 def save_score_record(

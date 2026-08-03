@@ -1,13 +1,10 @@
 """
 Shared Analysis Module: Sustained-Note Segmentation.
 
-Conceptual Overview:
 Auto-detects sustained note regions from a vocal recording without relying on lyrics or score cues.
-Extracts fundamental frequency (f0) contour and voicing flags using librosa.pyin, then segments
+Extracts fundamental frequency (f0) contour and voicing flags using librosa.piptrack, then segments
 contiguous voiced audio into distinct note intervals where pitch remains stable within ~0.5 semitones
 (50 cents) of the running local mean.
-
-Zero external dependencies outside numpy and librosa.
 """
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional
@@ -41,31 +38,44 @@ def extract_pitch_and_voicing(
     fmax: float = 1046.0,   # ~C6
     hop_length: int = 512,
     frame_length: int = 2048,
+    piptrack_threshold: float = 0.1,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Extracts f0 contour in Hz and MIDI pitch numbers along with voicing flags using librosa.pyin.
+    Extracts f0 contour in Hz and MIDI pitch numbers along with voicing flags using librosa.piptrack.
 
     Returns:
         f0_hz: Array of fundamental frequencies in Hz (NaN for unvoiced frames).
         voiced_flag: Boolean array (True for voiced frames).
-        voiced_probs: Voicing probability array (0.0 to 1.0).
+        voiced_probs: Normalized pitch salience per frame (0.0 to 1.0).
         f0_midi: Pitch converted to MIDI note numbers (NaN for unvoiced frames).
     """
-    f0_hz, voiced_flag, voiced_probs = librosa.pyin(
-        y,
+    pitches, magnitudes = librosa.piptrack(
+        y=y,
         sr=sr,
+        hop_length=hop_length,
+        n_fft=frame_length,
         fmin=fmin,
         fmax=fmax,
-        frame_length=frame_length,
-        hop_length=hop_length,
-        fill_na=np.nan
+        threshold=piptrack_threshold,
     )
 
-    # Convert Hz to MIDI pitch (standard formula: 69 + 12 * log2(f0 / 440))
-    f0_midi = np.full_like(f0_hz, np.nan)
-    valid_mask = ~np.isnan(f0_hz) & (f0_hz > 0)
-    if np.any(valid_mask):
-        f0_midi[valid_mask] = librosa.hz_to_midi(f0_hz[valid_mask])
+    # Per-frame dominant pitch bin (vectorized)
+    peak_indices = magnitudes.argmax(axis=0)
+    frame_indices = np.arange(magnitudes.shape[1])
+    f0_hz = pitches[peak_indices, frame_indices].astype(np.float64)
+    peak_mags = magnitudes[peak_indices, frame_indices]
+
+    global_max = float(peak_mags.max()) if peak_mags.size else 0.0
+    voiced_flag = (peak_mags > 0) & (f0_hz >= fmin) & (f0_hz <= fmax)
+    f0_hz = np.where(voiced_flag, f0_hz, np.nan)
+
+    voiced_probs = np.zeros(magnitudes.shape[1], dtype=np.float64)
+    if global_max > 0:
+        voiced_probs[voiced_flag] = peak_mags[voiced_flag] / global_max
+
+    f0_midi = np.full(magnitudes.shape[1], np.nan, dtype=np.float64)
+    if np.any(voiced_flag):
+        f0_midi[voiced_flag] = librosa.hz_to_midi(f0_hz[voiced_flag])
 
     return f0_hz, voiced_flag, voiced_probs, f0_midi
 
@@ -82,7 +92,7 @@ def detect_sustained_note_segments(
     """
     Auto-detects sustained-note regions across a vocal recording.
 
-    Step 1: Extract pitch (f0) and voicing flags using pYIN.
+    Step 1: Extract pitch (f0) and voicing flags using piptrack.
     Step 2: Find contiguous sequences of voiced frames.
     Step 3: Sub-segment contiguous regions when local pitch deviates by more than
             max_pitch_dev_semitones (~0.5 semitones / 50 cents) from running mean.

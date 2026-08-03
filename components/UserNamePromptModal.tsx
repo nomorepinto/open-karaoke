@@ -125,7 +125,7 @@ export const UserNamePromptModal: React.FC<UserNamePromptModalProps> = ({
               className="py-2.5 items-center"
             >
               <Text className="text-gray-500 text-[11px] tracking-wider font-mono">
-                SKIP FOR NOW
+                CANCEL
               </Text>
             </TouchableOpacity>
           </View>

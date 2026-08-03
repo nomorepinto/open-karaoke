@@ -1,11 +1,25 @@
 """
-SQLAlchemy ORM models mapped to PostgreSQL RDS schema (`scores` table).
+SQLAlchemy ORM models mapped to PostgreSQL RDS schema.
 """
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, Text
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+
+
+class Song(Base):
+    __tablename__ = "songs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(255), nullable=False)
 
 
 class Score(Base):

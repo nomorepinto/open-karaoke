@@ -10,6 +10,7 @@ numpy==1.26.4
 scipy==1.13.1
 soundfile==0.12.1
 scikit-learn==1.4.2
+soxr==0.3.7  # Pinned: newer soxr (0.5+) fails to compile on Lambda AL2 (GCC 7.3.1)
 librosa==0.10.2.post1
 
 # AWS SDK & Database Persistence

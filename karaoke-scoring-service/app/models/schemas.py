@@ -7,10 +7,6 @@ from datetime import datetime
 
 
 class ScoreRequest(BaseModel):
-    """
-    Request model for POST /score endpoint.
-    Client provides user_id, song_id, and s3_link for recorded vocal audio in S3.
-    """
     user_id: int = Field(
         ...,
         description="Foreign key ID for performer referencing users table.",
@@ -92,4 +88,36 @@ class ScoreResponse(BaseModel):
         description="Optional detailed array of sustained note segments for pitch curves / UI visualizers."
     )
     created_at: datetime = Field(..., description="Timestamp when score record was generated and persisted.")
+
+
+class BoothUserRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255, description="Booth performer display name.")
+
+
+class BoothUserResponse(BaseModel):
+    user_id: int
+    name: str
+
+
+class BoothSongRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255, description="Song title being performed.")
+
+
+class BoothSongResponse(BaseModel):
+    song_id: int
+    title: str
+
+
+class BoothUploadUrlRequest(BaseModel):
+    user_id: int = Field(..., gt=0)
+    song_id: int = Field(..., gt=0)
+    file_extension: str = Field(default="m4a", description="Recording file extension without dot.")
+    content_type: str = Field(default="audio/mp4", description="MIME type for the upload.")
+
+
+class BoothUploadUrlResponse(BaseModel):
+    upload_url: str
+    s3_key: str
+    bucket: str
+    expires_in: int = 900
 

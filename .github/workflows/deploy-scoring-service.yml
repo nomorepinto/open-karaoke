@@ -1,0 +1,84 @@
+name: Deploy Scoring Service
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "karaoke-scoring-service/**"
+      - ".github/workflows/deploy-scoring-service.yml"
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-southeast-1
+  SERVICE_DIR: karaoke-scoring-service
+  STACK_NAME: open-karaoke
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate:
+    name: Validate SAM template
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: karaoke-scoring-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run pre-deploy validation
+        run: python scripts/validate_deploy.py
+
+      - uses: aws-actions/setup-sam@v2
+
+      - name: SAM validate
+        run: sam validate --lint
+
+  deploy:
+    name: Build and deploy to AWS
+    needs: validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: karaoke-scoring-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/setup-sam@v2
+
+      - name: SAM build
+        run: sam build
+
+      - name: SAM deploy
+        env:
+          USE_EXISTING_S3_BUCKET: ${{ secrets.USE_EXISTING_S3_BUCKET }}
+          EXISTING_S3_BUCKET_NAME: ${{ secrets.EXISTING_S3_BUCKET_NAME }}
+        run: |
+          sam deploy \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --stack-name "${{ env.STACK_NAME }}" \
+            --capabilities CAPABILITY_IAM \
+            --resolve-s3 \
+            --resolve-image-repos \
+            --parameter-overrides \
+              "UseExistingS3Bucket=${USE_EXISTING_S3_BUCKET:-false}" \
+              "ExistingS3BucketName=${EXISTING_S3_BUCKET_NAME:-open-karaoke-recordings-bucket}" \
+              "DatabaseUrl=${{ secrets.DATABASE_URL }}"
+
+      - name: Print stack outputs
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name "${{ env.STACK_NAME }}" \
+            --query "Stacks[0].Outputs" \
+            --output table

@@ -1,11 +1,23 @@
 version = 0.1
 
+[default.global.parameters]
+region = "ap-southeast-1"
+
+[default.build.parameters]
+# Container image build — required for librosa/scipy/numpy (exceeds 250 MB zip limit)
+use_container = true
+parallel = true
+
 [default.deploy.parameters]
 stack_name = "open-karaoke"
 region = "ap-southeast-1"
 confirm_changeset = false
 capabilities = "CAPABILITY_IAM"
 disable_rollback = false
+# SAM-managed artifact bucket and ECR repo resolution (recommended for container Lambdas)
 resolve_s3 = true
-resolve_image_repositories = true
-parameter_overrides = "S3BucketName=\"open-karaoke-recordings-bucket\" DatabaseUrl=\"postgresql://postgres@database-1.cluster-c5gog2m2mroy.ap-southeast-1.rds.amazonaws.com:5432/postgres\""
+resolve_image_repos = true
+# Values queried from AWS account 268670073657 (ap-southeast-1) on 2026-08-04:
+#   S3:  open-karaoke-recordings-bucket (exists)
+#   RDS: my-dev-cluster Aurora PostgreSQL Serverless v2 (password auth, public endpoint)
+parameter_overrides = "UseExistingS3Bucket=\"true\" ExistingS3BucketName=\"open-karaoke-recordings-bucket\" DatabaseUrl=\"postgresql://postgres:ChangeMe123!@my-dev-cluster.cluster-c5gog2m2mroy.ap-southeast-1.rds.amazonaws.com:5432/postgres\""

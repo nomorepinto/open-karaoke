@@ -1,0 +1,15 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /score",
+  "rawPath": "/prod/score",
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": "{\"user_id\":1,\"song_id\":1,\"s3_link\":\"recordings/vocal_user_1_song_1.wav\"}",
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/prod/score"
+    }
+  }
+}

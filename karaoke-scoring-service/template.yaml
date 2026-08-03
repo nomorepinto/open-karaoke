@@ -5,31 +5,57 @@ Description: AWS SAM Template for Karaoke Scoring Service on AWS Lambda with Man
 Globals:
   Function:
     Timeout: 60
-    MemorySize: 2048
+    MemorySize: 3008
     Environment:
       Variables:
         ENVIRONMENT: production
         LOG_LEVEL: INFO
-        AWS_REGION: !Ref "AWS::Region"
-        S3_BUCKET_NAME: !Ref S3BucketName
-        S3_BUCKET_VOCALS: !Ref S3BucketName
-        S3_BUCKET_SONGS: !Ref S3BucketName
+        NUMBA_CACHE_DIR: /tmp
+        MPLCONFIGDIR: /tmp
+        S3_BUCKET_NAME: !If [CreateS3Bucket, !Ref RecordingsBucket, !Ref ExistingS3BucketName]
+        S3_BUCKET_VOCALS: !If [CreateS3Bucket, !Ref RecordingsBucket, !Ref ExistingS3BucketName]
+        S3_BUCKET_SONGS: !If [CreateS3Bucket, !Ref RecordingsBucket, !Ref ExistingS3BucketName]
         DATABASE_URL: !Ref DatabaseUrl
 
 Parameters:
-  S3BucketName:
+  UseExistingS3Bucket:
     Type: String
-    Default: open-karaoke-bucket
-    Description: Name of S3 bucket storing vocal recordings and master instrumental tracks.
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: Set to true if the recordings bucket already exists outside this stack.
+
+  ExistingS3BucketName:
+    Type: String
+    Default: open-karaoke-recordings-bucket
+    Description: Name of the existing S3 bucket when UseExistingS3Bucket is true.
 
   DatabaseUrl:
     Type: String
     NoEcho: true
-    Default: postgresql://postgres@database-1-instance-1.c5gog2m2mroy.ap-southeast-1.rds.amazonaws.com:5432/postgres
-    Description: Connection string for AWS RDS PostgreSQL database (IAM database auth enabled).
+    Default: postgresql://postgres:ChangeMe123!@my-dev-cluster.cluster-c5gog2m2mroy.ap-southeast-1.rds.amazonaws.com:5432/postgres
+    Description: Connection string for AWS RDS PostgreSQL (include username and password).
+
+Conditions:
+  CreateS3Bucket: !Equals [!Ref UseExistingS3Bucket, "false"]
 
 Resources:
-  # API Gateway HTTP API
+  RecordingsBucket:
+    Type: AWS::S3::Bucket
+    Condition: CreateS3Bucket
+    Properties:
+      BucketName: open-karaoke-recordings-bucket
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
   KaraokeApi:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -44,7 +70,6 @@ Resources:
         AllowHeaders:
           - "*"
 
-  # Container-based Lambda Function
   KaraokeScoringFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -56,16 +81,23 @@ Resources:
         - Statement:
             - Effect: Allow
               Action:
-                - rds-db:connect
-              Resource: "*"
-        - S3ReadPolicy:
-            BucketName: !Ref S3BucketName
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub
+                - "arn:aws:s3:::${BucketName}/*"
+                - BucketName: !If [CreateS3Bucket, !Ref RecordingsBucket, !Ref ExistingS3BucketName]
       Events:
         RootPath:
           Type: HttpApi
           Properties:
             Path: /{proxy+}
             Method: ANY
+            ApiId: !Ref KaraokeApi
+        HealthPath:
+          Type: HttpApi
+          Properties:
+            Path: /health
+            Method: GET
             ApiId: !Ref KaraokeApi
     Metadata:
       Dockerfile: Dockerfile
@@ -74,9 +106,20 @@ Resources:
 
 Outputs:
   ApiEndpoint:
-    Description: "API Gateway Endpoint URL for Karaoke Scoring Service"
+    Description: API Gateway endpoint URL for Karaoke Scoring Service
     Value: !Sub "https://${KaraokeApi}.execute-api.${AWS::Region}.amazonaws.com/prod/"
 
   LambdaFunctionArn:
-    Description: "Karaoke Scoring Lambda Function ARN"
+    Description: Karaoke Scoring Lambda function ARN
     Value: !GetAtt KaraokeScoringFunction.Arn
+
+  S3BucketName:
+    Description: S3 bucket for vocal recordings and instrumental tracks
+    Value: !If [CreateS3Bucket, !Ref RecordingsBucket, !Ref ExistingS3BucketName]
+
+  S3BucketArn:
+    Description: S3 bucket ARN
+    Value: !If
+      - CreateS3Bucket
+      - !GetAtt RecordingsBucket.Arn
+      - !Sub "arn:aws:s3:::${ExistingS3BucketName}"

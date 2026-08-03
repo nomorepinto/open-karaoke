@@ -30,10 +30,15 @@ def override_get_db():
 
 
 app.dependency_overrides[get_db] = override_get_db
-client = TestClient(app)
 
 
-def test_health_check():
+@pytest.fixture
+def client():
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+def test_health_check(client):
     """Test GET /health endpoint."""
     response = client.get("/health")
     assert response.status_code == 200
@@ -41,10 +46,10 @@ def test_health_check():
     assert data["status"] == "healthy"
 
 
-@patch("app.api.routes.score.load_vocal_and_instrumental_tracks")
-def test_post_score_endpoint(mock_load_audio, synthetic_vocal_audio, synthetic_instrumental_audio, sr):
-    """Test POST /score endpoint with mocked S3 audio downloader."""
-    mock_load_audio.return_value = (synthetic_vocal_audio, synthetic_instrumental_audio, sr)
+@patch("app.api.routes.score.load_vocal_track")
+def test_post_score_endpoint(mock_load_audio, client, synthetic_vocal_audio, sr):
+    """Test POST /score endpoint with mocked S3 vocal downloader."""
+    mock_load_audio.return_value = (synthetic_vocal_audio, sr)
 
     payload = {
         "user_id": 1,
@@ -63,9 +68,9 @@ def test_post_score_endpoint(mock_load_audio, synthetic_vocal_audio, synthetic_i
     assert 0.0 <= data["total_score"] <= 100.0
     assert "scores" in data
     assert 0.0 <= data["scores"]["pitch_stability"] <= 100.0
-    assert 0.0 <= data["scores"]["rhythm_accuracy"] <= 100.0
+    assert data["scores"]["rhythm_accuracy"] == 0.0
     assert 0.0 <= data["scores"]["volume_consistency"] <= 100.0
-    assert 0.0 <= data["scores"]["sustain_consistency"] <= 100.0
+    assert data["scores"]["sustain_consistency"] == 0.0
 
     # Retrieve record by ID
     rec_id = data["record_id"]

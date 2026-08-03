@@ -9,6 +9,8 @@ export interface KaraokeState {
   readonly currentLyricIndex: number;
   readonly playbackProgress: number; // 0 to 100
   readonly scoreBreakdown: ScoreBreakdown;
+  readonly performerName: string | null;
+  readonly lastScoreRecordId: number | null;
   readonly chromecastConnected: boolean;
   readonly micGain: number; // multiplier e.g. 4.0
   readonly echoEffect: boolean;
@@ -23,6 +25,8 @@ export interface KaraokeState {
   readonly setMicGain: (gain: number) => void;
   readonly toggleEchoEffect: () => void;
   readonly setScoreBreakdown: (score: ScoreBreakdown) => void;
+  readonly setPerformerName: (name: string | null) => void;
+  readonly setLastScoreRecordId: (recordId: number | null) => void;
 }
 
 export const useKaraokeStore = create<KaraokeState>((set) => ({
@@ -32,6 +36,8 @@ export const useKaraokeStore = create<KaraokeState>((set) => ({
   currentLyricIndex: 0,
   playbackProgress: 18,
   scoreBreakdown: SAMPLE_SCORE_BREAKDOWN,
+  performerName: null,
+  lastScoreRecordId: null,
   chromecastConnected: false,
   micGain: DEFAULT_MIC_MONITOR_CONFIG.gain,
   echoEffect: true,
@@ -46,4 +52,6 @@ export const useKaraokeStore = create<KaraokeState>((set) => ({
   setMicGain: (gain) => set({ micGain: gain }),
   toggleEchoEffect: () => set((state) => ({ echoEffect: !state.echoEffect })),
   setScoreBreakdown: (score) => set({ scoreBreakdown: score }),
+  setPerformerName: (name) => set({ performerName: name }),
+  setLastScoreRecordId: (recordId) => set({ lastScoreRecordId: recordId }),
 }));

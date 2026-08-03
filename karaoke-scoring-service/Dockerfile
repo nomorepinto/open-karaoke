@@ -6,7 +6,7 @@ FROM public.ecr.aws/lambda/python:3.11
 
 # Install OS system dependencies for libsndfile and audio processing
 RUN yum update -y && \
-    yum install -y libsndfile gcc gcc-c++ make && \
+    yum install -y libsndfile gcc gcc-c++ make ffmpeg && \
     yum clean all
 
 # Copy dependency requirements

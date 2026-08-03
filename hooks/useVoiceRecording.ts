@@ -19,7 +19,7 @@ export interface UseVoiceRecordingReturn {
   readonly startRecording: () => Promise<void>;
   readonly pauseRecording: () => Promise<void>;
   readonly resumeRecording: () => Promise<void>;
-  readonly stopRecording: () => Promise<void>;
+  readonly stopRecording: () => Promise<string | null>;
   readonly deleteRecording: () => Promise<void>;
 }
 
@@ -97,9 +97,11 @@ export function useVoiceRecording({
   }, [audioRecorder, recordingStatus]);
 
   // ── Stop Recording ──────────────────────────────────────────────────
-  const stopRecording = useCallback(async () => {
+  const stopRecording = useCallback(async (): Promise<string | null> => {
     try {
-      if (recordingStatus !== 'recording' && recordingStatus !== 'paused') return;
+      if (recordingStatus !== 'recording' && recordingStatus !== 'paused') {
+        return recordingUri;
+      }
 
       await audioRecorder.stop();
       const uri = audioRecorder.uri;
@@ -108,10 +110,12 @@ export function useVoiceRecording({
       }
       hasStartedRef.current = false;
       setRecordingStatus('stopped');
+      return uri ?? recordingUri;
     } catch (err) {
       console.error('[useVoiceRecording] stopRecording failed:', err);
+      return recordingUri;
     }
-  }, [audioRecorder, recordingStatus]);
+  }, [audioRecorder, recordingStatus, recordingUri]);
 
   // ── Delete Recording & Reset ────────────────────────────────────────
   const deleteRecording = useCallback(async () => {

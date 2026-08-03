@@ -13,6 +13,8 @@ export default function PerformanceScoreScreen() {
   const router = useRouter();
   const activeSong = useKaraokeStore((s) => s.activeSong);
   const scoreBreakdown = useKaraokeStore((s) => s.scoreBreakdown);
+  const performerName = useKaraokeStore((s) => s.performerName);
+  const lastScoreRecordId = useKaraokeStore((s) => s.lastScoreRecordId);
 
   return (
     <View className="flex-1 bg-surface">
@@ -24,12 +26,17 @@ export default function PerformanceScoreScreen() {
           <Image source={{ uri: activeSong.coverUrl }} className="w-14 h-14 rounded-xl mr-3" />
           <View className="flex-1">
             <Text className="text-gray-400 text-[10px] font-mono font-bold tracking-widest uppercase mb-0.5">
-              PERFORMANCE COMPLETED
+              {performerName ? `${performerName.toUpperCase()} • SAVED` : 'PERFORMANCE COMPLETED'}
             </Text>
             <Text className="text-white font-extrabold text-base" numberOfLines={1}>
               {activeSong.title}
             </Text>
             <Text className="text-[#00eefc] font-medium text-xs">{activeSong.artist}</Text>
+            {lastScoreRecordId != null && (
+              <Text className="text-gray-500 text-[10px] font-mono mt-1">
+                Record #{lastScoreRecordId} saved to booth database
+              </Text>
+            )}
           </View>
           <View className="bg-[#bd00ff]/20 border border-[#bd00ff] px-3 py-1 rounded-full">
             <Text className="text-[#bd00ff] text-xs font-bold font-mono">NEW RECORD</Text>
@@ -46,30 +53,30 @@ export default function PerformanceScoreScreen() {
 
         <View className="flex-row flex-wrap -mx-1.5">
           <ScoreMetricCard
-            title="Pitch Accuracy"
+            title="Pitch Stability"
             value={`${scoreBreakdown.pitchAccuracy}%`}
-            subtitle="Matched 124 notes"
+            subtitle="Steady sustained notes"
             iconName="musical-notes"
             color="cyan"
           />
           <ScoreMetricCard
             title="Rhythm Precision"
             value={`${scoreBreakdown.rhythmPrecision}%`}
-            subtitle="Perfect timing"
+            subtitle="Coming soon"
             iconName="time"
             color="purple"
           />
           <ScoreMetricCard
-            title="Tone Quality"
+            title="Volume Consistency"
             value={`${scoreBreakdown.toneQuality}%`}
-            subtitle="Clear vocal resonance"
+            subtitle="Dynamics & breath support"
             iconName="sparkles"
             color="pink"
           />
           <ScoreMetricCard
-            title="Vibrato & Combo"
-            value={`+${scoreBreakdown.vibratoBonus} pts`}
-            subtitle={`${scoreBreakdown.maxCombo} Note Combo`}
+            title="Sustained Notes"
+            value={`${scoreBreakdown.maxCombo}`}
+            subtitle="Detected note segments"
             iconName="flame"
             color="green"
           />
@@ -82,8 +89,8 @@ export default function PerformanceScoreScreen() {
               <Ionicons name="mic" size={20} color="#00eefc" />
             </View>
             <View className="flex-1">
-              <Text className="text-white font-bold text-sm">Vocal Recording Ready</Text>
-              <Text className="text-gray-400 text-xs">HQ Audio saved to local vault</Text>
+              <Text className="text-white font-bold text-sm">Vocal Recording Saved</Text>
+              <Text className="text-gray-400 text-xs">Uploaded to booth cloud storage</Text>
             </View>
           </View>
           <GlowButton title="Share" variant="secondary" iconName="share-social" onPress={() => {}} />

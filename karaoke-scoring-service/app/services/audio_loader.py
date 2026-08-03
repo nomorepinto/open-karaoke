@@ -54,9 +54,34 @@ def fetch_audio_from_s3(
         response = s3_client.get_object(Bucket=bucket_name, Key=s3_key)
         audio_bytes = response['Body'].read()
 
-        # Parse audio in-memory via soundfile / PySoundFile
+        # Parse audio in-memory — soundfile for wav; temp file + librosa for mobile m4a/caf
         with io.BytesIO(audio_bytes) as bio:
-            y, sr = sf.read(bio)
+            try:
+                y, sr = sf.read(bio)
+            except Exception:
+                import os
+                import tempfile
+                import librosa
+
+                lower_key = s3_key.lower()
+                if lower_key.endswith(".wav"):
+                    suffix = ".wav"
+                elif lower_key.endswith(".caf"):
+                    suffix = ".caf"
+                elif lower_key.endswith(".3gp"):
+                    suffix = ".3gp"
+                else:
+                    suffix = ".m4a"
+
+                tmp_path = None
+                try:
+                    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                        tmp.write(audio_bytes)
+                        tmp_path = tmp.name
+                    y, sr = librosa.load(tmp_path, sr=None, mono=True)
+                finally:
+                    if tmp_path and os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
 
         return normalize_audio_signal(y, target_sr=target_sr, orig_sr=sr)
 
@@ -73,6 +98,19 @@ def fetch_audio_from_s3(
             raise
         logger.error(f"Corrupt or unreadable audio file for key '{s3_key}': {e}")
         raise ValueError(f"Malformed audio file at S3 key '{s3_key}': {str(e)}") from e
+
+
+def load_vocal_track(
+    vocal_s3_key: str,
+    target_sr: int = 22050,
+) -> Tuple[np.ndarray, int]:
+    """Load vocal recording only (pitch + volume scoring does not need instrumental)."""
+    y_vocal, sr = fetch_audio_from_s3(
+        bucket_name=settings.S3_BUCKET_VOCALS,
+        s3_key=vocal_s3_key,
+        target_sr=target_sr,
+    )
+    return y_vocal, sr
 
 
 def load_vocal_and_instrumental_tracks(
